@@ -31,6 +31,9 @@ public sealed class PreviewPlayer
     public bool IsRepeatEnabled => _repeatEnabled;
     public bool IsPlaying => MediaPlayer.PlaybackSession.PlaybackState == MediaPlaybackState.Playing;
     public IReadOnlyList<MusicResource> Queue => _queue;
+    public MusicResource? CurrentItem => _currentQueueIndex >= 0 && _currentQueueIndex < _queue.Count
+        ? _queue[_currentQueueIndex]
+        : null;
     public int CurrentQueueIndex => _currentQueueIndex;
     public TimeSpan CurrentPosition => MediaPlayer.PlaybackSession.Position;
     public TimeSpan CurrentDuration => MediaPlayer.PlaybackSession.NaturalDuration;

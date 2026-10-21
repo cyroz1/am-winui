@@ -22,6 +22,7 @@ public sealed class PlaybackQueueItem
     public string? ArtworkUrl { get; init; }
     public string? CatalogId { get; init; }
     public string? PreviewUrl { get; init; }
+    public string? ShareUrl { get; init; }
     public int? DurationInMillis { get; init; }
 
     public static PlaybackQueueItem FromResource(MusicResource resource) => new()
@@ -34,6 +35,7 @@ public sealed class PlaybackQueueItem
         ArtworkUrl = resource.ArtworkUrl,
         CatalogId = resource.CatalogId,
         PreviewUrl = resource.PreviewUrl,
+        ShareUrl = resource.ShareUrl,
         DurationInMillis = resource.DurationInMillis
     };
 
@@ -47,6 +49,7 @@ public sealed class PlaybackQueueItem
         ArtworkUrl = ArtworkUrl,
         CatalogId = CatalogId,
         PreviewUrl = PreviewUrl,
+        ShareUrl = ShareUrl,
         DurationInMillis = DurationInMillis
     };
 }

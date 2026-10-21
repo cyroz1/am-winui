@@ -1,3 +1,4 @@
+using AmNative.Models;
 using AmNative.Pages;
 using AmNative.Playback;
 using AmNative.Services;
@@ -130,6 +131,7 @@ public sealed partial class MainWindow : Window
         PlaybackErrorText.Visibility = Visibility.Collapsed;
         NowPlayingTitle.Text = args.Title;
         NowPlayingArtist.Text = args.Artist;
+        UpdateAppleMusicLinkAction(args.Resource);
         PlaybackElement.Visibility = args.Resource?.IsMusicVideo == true
             ? Visibility.Visible
             : Visibility.Collapsed;
@@ -152,6 +154,49 @@ public sealed partial class MainWindow : Window
     {
         NowPlayingArtwork.Visibility = Visibility.Collapsed;
         NowPlayingArtworkPlaceholder.Visibility = Visibility.Visible;
+    }
+
+    private async void OnOpenAppleMusicClicked(object sender, RoutedEventArgs args)
+    {
+        if (!TryGetAppleMusicShareUri(App.Player.CurrentItem, out var uri))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!await Launcher.LaunchUriAsync(uri))
+            {
+                PlaybackErrorText.Text = "Windows could not open this Apple Music link.";
+                PlaybackErrorText.Visibility = Visibility.Visible;
+            }
+        }
+        catch
+        {
+            PlaybackErrorText.Text = "Windows could not open this Apple Music link.";
+            PlaybackErrorText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void UpdateAppleMusicLinkAction(MusicResource? resource)
+    {
+        var available = TryGetAppleMusicShareUri(resource, out _);
+        OpenAppleMusicButton.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+        OpenAppleMusicButton.IsEnabled = available;
+    }
+
+    private static bool TryGetAppleMusicShareUri(MusicResource? resource, out Uri uri)
+    {
+        if (Uri.TryCreate(resource?.ShareUrl, UriKind.Absolute, out var parsed) &&
+            parsed.Scheme == Uri.UriSchemeHttps &&
+            string.Equals(parsed.Host, "music.apple.com", StringComparison.OrdinalIgnoreCase))
+        {
+            uri = parsed;
+            return true;
+        }
+
+        uri = null!;
+        return false;
     }
 
     private void OnPlayerPlaybackStateChanged(object? sender, EventArgs args)
@@ -455,6 +500,7 @@ public sealed partial class MainWindow : Window
 
     private void UpdatePlaybackActions()
     {
+        UpdateAppleMusicLinkAction(App.Player.CurrentItem);
         PreviousTrackButton.IsEnabled = App.Player.CanSkipPrevious;
         PlayPauseButton.Content = App.Player.IsPlaying ? "Pause" : "Play";
         PlayPauseButton.IsEnabled = App.Player.Queue.Count > 0;

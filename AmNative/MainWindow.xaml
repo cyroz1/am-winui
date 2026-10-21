@@ -69,6 +69,16 @@
                     <StackPanel Spacing="2" VerticalAlignment="Center">
                         <TextBlock x:Name="NowPlayingTitle" Text="Nothing playing" FontWeight="SemiBold" />
                         <TextBlock x:Name="NowPlayingArtist" Text="Apple Music preview player" Opacity="0.68" FontSize="12" />
+                        <Button
+                            x:Name="OpenAppleMusicButton"
+                            Content="Open in Apple Music"
+                            FontSize="11"
+                            Padding="0"
+                            HorizontalAlignment="Left"
+                            Visibility="Collapsed"
+                            Click="OnOpenAppleMusicClicked"
+                            AutomationProperties.Name="Open the current item in Apple Music"
+                            ToolTipService.ToolTip="Open this Apple Music link in the default browser for full playback." />
                         <TextBlock
                             x:Name="PlaybackRestoreText"
                             Text="Previous preview queue restored. Press Play to resume."
