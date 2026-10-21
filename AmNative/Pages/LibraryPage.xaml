@@ -7,7 +7,7 @@
             <TextBlock Text="Your library" FontSize="30" FontWeight="Bold" />
             <TextBlock Text="Browse songs, albums, artists, playlists, and videos saved to your Apple Music account. Filter by genre or favorites, and use Ctrl or Shift to select items for playback or playlists." Opacity="0.68" />
         </StackPanel>
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
             <ComboBox x:Name="KindBox" SelectedIndex="0" SelectionChanged="OnKindChanged" MinWidth="150">
                 <ComboBoxItem Content="Recently added" Tag="recently-added" />
                 <ComboBoxItem Content="Songs" Tag="songs" />
@@ -17,7 +17,22 @@
                 <ComboBoxItem Content="Music videos" Tag="music-videos" />
             </ComboBox>
             <TextBox x:Name="LibrarySearchBox" Grid.Column="1" PlaceholderText="Search your library" KeyDown="OnSearchKeyDown" />
-            <Button x:Name="RefreshButton" Grid.Column="2" Content="Refresh" Click="OnRefreshClicked" />
+            <ComboBox
+                x:Name="SortBox"
+                Grid.Column="2"
+                MinWidth="160"
+                SelectedIndex="0"
+                ToolTipService.ToolTip="Sort the loaded library items"
+                AutomationProperties.Name="Sort library items"
+                SelectionChanged="OnSortChanged">
+                <ComboBoxItem Content="Apple order" Tag="apple" />
+                <ComboBoxItem Content="Title A–Z" Tag="title" />
+                <ComboBoxItem Content="Artist A–Z" Tag="artist" />
+                <ComboBoxItem Content="Album A–Z" Tag="album" />
+                <ComboBoxItem Content="Duration: shortest" Tag="duration-ascending" />
+                <ComboBoxItem Content="Duration: longest" Tag="duration-descending" />
+            </ComboBox>
+            <Button x:Name="RefreshButton" Grid.Column="3" Content="Refresh" Click="OnRefreshClicked" />
         </Grid>
         <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="12">
             <TextBlock x:Name="StatusText" Text="Connect Apple Music in Settings to load your library." Opacity="0.72" VerticalAlignment="Center" />

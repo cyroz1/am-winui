@@ -17,6 +17,7 @@ public sealed partial class LibraryPage : Page
     private bool _showFavoritesOnly;
     private bool _updatingGenreOptions;
     private string? _selectedGenre;
+    private string _sortMode = "apple";
     private bool _resolvingPlayback;
     private bool _addingToFavorites;
     private bool _ratingLoading;
@@ -73,6 +74,28 @@ public sealed partial class LibraryPage : Page
 
         var selectedGenre = (GenreFilterBox.SelectedItem as ComboBoxItem)?.Tag as string;
         _selectedGenre = string.IsNullOrWhiteSpace(selectedGenre) ? null : selectedGenre;
+        LibraryList.SelectedItems.Clear();
+        _selected = null;
+        _selectedRating = null;
+        ActionStatus.Text = "";
+        RefreshVisibleItems();
+        UpdateResultStatus();
+        UpdateActions();
+    }
+
+    private void OnSortChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (SortBox.SelectedItem is not ComboBoxItem { Tag: string sortMode })
+        {
+            return;
+        }
+
+        _sortMode = sortMode;
+        if (!IsLoaded)
+        {
+            return;
+        }
+
         LibraryList.SelectedItems.Clear();
         _selected = null;
         _selectedRating = null;
@@ -260,23 +283,46 @@ public sealed partial class LibraryPage : Page
     private void RefreshVisibleItems()
     {
         _items.Clear();
-        foreach (var item in _loadedItems)
+        var visibleItems = _loadedItems.Where(item =>
         {
             var matchesFavorites = !_showFavoritesOnly || item.IsFavorited == true;
             var matchesGenre = _selectedGenre is null ||
                                item.GenreNames.Contains(_selectedGenre, StringComparer.OrdinalIgnoreCase);
-            if (matchesFavorites && matchesGenre)
-            {
-                _items.Add(item);
-            }
+            return matchesFavorites && matchesGenre;
+        });
+
+        visibleItems = _sortMode switch
+        {
+            "title" => visibleItems.OrderBy(static item => item.Name, StringComparer.CurrentCultureIgnoreCase),
+            "artist" => visibleItems
+                .OrderBy(static item => string.IsNullOrWhiteSpace(item.ArtistName))
+                .ThenBy(static item => item.ArtistName, StringComparer.CurrentCultureIgnoreCase),
+            "album" => visibleItems
+                .OrderBy(static item => string.IsNullOrWhiteSpace(item.AlbumName))
+                .ThenBy(static item => item.AlbumName, StringComparer.CurrentCultureIgnoreCase),
+            "duration-ascending" => visibleItems
+                .OrderBy(static item => item.DurationInMillis is null)
+                .ThenBy(static item => item.DurationInMillis ?? int.MaxValue),
+            "duration-descending" => visibleItems
+                .OrderBy(static item => item.DurationInMillis is null)
+                .ThenByDescending(static item => item.DurationInMillis ?? int.MinValue),
+            _ => visibleItems
+        };
+
+        foreach (var item in visibleItems)
+        {
+            _items.Add(item);
         }
     }
 
     private void UpdateResultStatus()
     {
+        var sortSuffix = _sortMode == "apple"
+            ? ""
+            : $" · Sorted by {(SortBox.SelectedItem as ComboBoxItem)?.Content}";
         if (!_showFavoritesOnly)
         {
-            var genreSuffix = _selectedGenre is null ? "" : $" · {_selectedGenre}";
+            var genreSuffix = (_selectedGenre is null ? "" : $" · {_selectedGenre}") + sortSuffix;
             if (_isSearching)
             {
                 StatusText.Text = $"{_items.Count} results{genreSuffix}";
@@ -297,6 +343,8 @@ public sealed partial class LibraryPage : Page
         {
             status += $" · {_selectedGenre}";
         }
+
+        status += sortSuffix;
 
         if (unknownCount > 0)
         {

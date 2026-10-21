@@ -13,6 +13,7 @@ AM Native is a native Windows desktop client for Apple Music. The UI uses WinUI 
 - Browse paginated library songs, albums, artists, playlists, and music videos.
 - Browse the mixed recently added library feed.
 - Search the user's library.
+- Sort loaded library and library-search results by Apple order, title, artist, album, or duration.
 - Filter library and library-search results to favorited items while continuing through paginated results; show when Apple omits favorite status from a response.
 - Filter loaded library, library-search, catalog-search, and chart results by Apple-provided genre; options expand as additional pages are loaded.
 - Show genres, duration, explicit-content labels, and lyrics availability in shared native music rows when Apple provides that metadata.
