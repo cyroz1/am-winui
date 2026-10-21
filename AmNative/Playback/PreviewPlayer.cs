@@ -30,6 +30,8 @@ public sealed class PreviewPlayer
     public bool IsRepeatEnabled => _repeatEnabled;
     public IReadOnlyList<MusicResource> Queue => _queue;
     public int CurrentQueueIndex => _currentQueueIndex;
+    public TimeSpan CurrentPosition => MediaPlayer.PlaybackSession.Position;
+    public TimeSpan CurrentDuration => MediaPlayer.PlaybackSession.NaturalDuration;
 
     public event EventHandler<TrackChangedEventArgs>? TrackChanged;
 
@@ -133,6 +135,19 @@ public sealed class PreviewPlayer
         {
             _playbackList?.MoveNext();
         }
+    }
+
+    public void Seek(TimeSpan position)
+    {
+        var session = MediaPlayer.PlaybackSession;
+        var duration = session.NaturalDuration;
+        if (duration <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        var clampedTicks = Math.Clamp(position.Ticks, 0, duration.Ticks);
+        session.Position = TimeSpan.FromTicks(clampedTicks);
     }
 
     public void ToggleShuffle()

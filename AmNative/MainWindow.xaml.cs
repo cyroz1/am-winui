@@ -1,17 +1,31 @@
 using AmNative.Pages;
 using AmNative.Playback;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
+using Windows.System;
 
 namespace AmNative;
 
 public sealed partial class MainWindow : Window
 {
+    private readonly DispatcherQueueTimer _playbackProgressTimer;
+    private bool _isScrubbing;
+
     public MainWindow()
     {
         InitializeComponent();
         App.Player.Attach(PlaybackElement);
         App.Player.TrackChanged += OnTrackChanged;
+
+        _playbackProgressTimer = PlaybackElement.DispatcherQueue.CreateTimer();
+        _playbackProgressTimer.Interval = TimeSpan.FromMilliseconds(400);
+        _playbackProgressTimer.IsRepeating = true;
+        _playbackProgressTimer.Tick += (_, _) => UpdatePlaybackTimeline();
+        _playbackProgressTimer.Start();
+        Closed += (_, _) => _playbackProgressTimer.Stop();
 
         RootNavigation.SelectedItem = RootNavigation.MenuItems[0];
         if (ContentFrame.CurrentSourcePageType != typeof(HomePage))
@@ -48,6 +62,75 @@ public sealed partial class MainWindow : Window
         NowPlayingTitle.Text = args.Title;
         NowPlayingArtist.Text = args.Artist;
         UpdatePlaybackActions();
+        UpdatePlaybackTimeline();
+    }
+
+    private void OnTimelineValueChanged(object sender, RangeBaseValueChangedEventArgs args)
+    {
+        if (_isScrubbing)
+        {
+            CurrentTimeText.Text = FormatTime(TimeSpan.FromSeconds(args.NewValue));
+        }
+    }
+
+    private void OnTimelinePointerPressed(object sender, PointerRoutedEventArgs args)
+    {
+        _isScrubbing = PlaybackTimeline.IsEnabled;
+    }
+
+    private void OnTimelinePointerReleased(object sender, PointerRoutedEventArgs args) => CommitTimelineSeek();
+
+    private void OnTimelinePointerCaptureLost(object sender, PointerRoutedEventArgs args) => CommitTimelineSeek();
+
+    private void OnTimelineKeyUp(object sender, KeyRoutedEventArgs args)
+    {
+        if (PlaybackTimeline.IsEnabled &&
+            args.Key is (VirtualKey.Left or VirtualKey.Right or VirtualKey.Home or VirtualKey.End or
+                VirtualKey.PageUp or VirtualKey.PageDown))
+        {
+            SeekToTimelineValue();
+        }
+    }
+
+    private void CommitTimelineSeek()
+    {
+        if (!_isScrubbing)
+        {
+            return;
+        }
+
+        _isScrubbing = false;
+        SeekToTimelineValue();
+        UpdatePlaybackTimeline();
+    }
+
+    private void SeekToTimelineValue() => App.Player.Seek(TimeSpan.FromSeconds(PlaybackTimeline.Value));
+
+    private void UpdatePlaybackTimeline()
+    {
+        var position = App.Player.CurrentPosition;
+        var duration = App.Player.CurrentDuration;
+        var durationSeconds = Math.Max(0, duration.TotalSeconds);
+
+        PlaybackTimeline.IsEnabled = durationSeconds > 0;
+        PlaybackTimeline.Maximum = durationSeconds > 0 ? durationSeconds : 1;
+        if (!_isScrubbing)
+        {
+            PlaybackTimeline.Value = Math.Clamp(position.TotalSeconds, 0, PlaybackTimeline.Maximum);
+            CurrentTimeText.Text = FormatTime(position);
+        }
+
+        DurationText.Text = FormatTime(duration);
+    }
+
+    private static string FormatTime(TimeSpan value)
+    {
+        var totalSeconds = Math.Max(0, (long)value.TotalSeconds);
+        var minutes = totalSeconds / 60;
+        var seconds = totalSeconds % 60;
+        return totalSeconds >= 3600
+            ? $"{minutes / 60}:{minutes % 60:00}:{seconds:00}"
+            : $"{minutes}:{seconds:00}";
     }
 
     private void OnPreviousTrackClicked(object sender, RoutedEventArgs e) => App.Player.SkipPrevious();
