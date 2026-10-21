@@ -14,6 +14,7 @@ public sealed partial class SettingsPage : Page
     {
         InitializeComponent();
         UpdateStatus();
+        UpdateConnectionSummary();
     }
 
     private void OnSaveClicked(object sender, RoutedEventArgs e)
@@ -45,6 +46,7 @@ public sealed partial class SettingsPage : Page
             DeveloperKeyIdBox.Text = "";
             _selectedDeveloperPrivateKeyPem = null;
             UpdateDeveloperKeyStatus();
+            UpdateConnectionSummary();
             StatusText.Text = "Credentials were saved securely. A supplied web cookie is protected with Windows DPAPI. Blank fields kept their saved values.";
         }
         catch (ArgumentException exception)
@@ -132,6 +134,7 @@ public sealed partial class SettingsPage : Page
             DeveloperKeyIdBox.Text = "";
             _selectedDeveloperPrivateKeyPem = null;
             UpdateDeveloperKeyStatus();
+            UpdateConnectionSummary();
             StatusText.Text = "Saved Apple Music credentials were removed.";
         }
         catch
@@ -148,6 +151,35 @@ public sealed partial class SettingsPage : Page
                 ? "Apple Music credentials are saved securely. The web cookie is protected with Windows DPAPI."
                 : "Apple Music credentials are saved securely in Windows Credential Manager."
             : "Credentials have not been saved.";
+    }
+
+    private void UpdateConnectionSummary()
+    {
+        var hasDeveloperToken = App.Credentials.HasDeveloperToken;
+        var hasUserToken = App.Credentials.HasUserCredential;
+        var hasWebCookie = App.Credentials.HasWebCookie;
+
+        DeveloperTokenSummary.Text = hasDeveloperToken
+            ? App.Credentials.HasSavedDeveloperPrivateKey
+                ? "Developer token: Ready · signed locally from the saved key"
+                : "Developer token: Ready"
+            : "Developer token: Needed for Apple Music API access";
+
+        UserTokenSummary.Text = hasUserToken
+            ? "Music User Token: Ready for personal library requests"
+            : "Music User Token: Needed for personal library requests";
+
+        WebCookieSummary.Text = hasWebCookie
+            ? "Web cookie: Saved securely; only its Music User Token is sent to the API"
+            : "Web cookie: Not saved (optional)";
+
+        AccessSummary.Text = hasDeveloperToken && hasUserToken
+            ? "Catalog and personal library API access are configured."
+            : hasDeveloperToken
+                ? "Catalog API access is configured. Add a Music User Token for your library."
+                : hasUserToken
+                    ? "Music User Token is saved. Add a developer token to use the API."
+                    : "Add a developer token for catalog access and a Music User Token for your library.";
     }
 
     private void UpdateDeveloperKeyStatus()
