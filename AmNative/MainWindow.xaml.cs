@@ -95,7 +95,7 @@ public sealed partial class MainWindow : Window
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = PlaybackElement.XamlRoot
         };
-        dialog.PrimaryButtonClick += (_, args) =>
+        dialog.PrimaryButtonClick += (sender, args) =>
         {
             if (list.SelectedIndex < 0 || list.SelectedIndex >= queue.Count)
             {
