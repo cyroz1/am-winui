@@ -38,6 +38,25 @@ jobs:
           -p:Platform=${{ matrix.platform }}
           -p:WindowsAppSDKSelfContained=true
 
+      - name: Verify app does not use or bundle WebView2
+        shell: pwsh
+        env:
+          PUBLISH_DIR: ${{ github.workspace }}\artifacts\publish\${{ matrix.rid }}
+        run: |
+          $webViewReferences = Get-ChildItem AmNative -Recurse -File -Include *.cs,*.xaml,*.csproj |
+            Select-String -Pattern 'Microsoft\.Web\.WebView2|Microsoft\.UI\.Xaml\.Controls\.WebView2|\bWebView2\b|CoreWebView2'
+          if ($webViewReferences) {
+            $webViewReferences | ForEach-Object { Write-Error "$($_.Path):$($_.LineNumber): $($_.Line.Trim())" }
+            throw 'The app must not use WebView2.'
+          }
+
+          $runtimeFiles = Get-ChildItem $env:PUBLISH_DIR -Recurse -File |
+            Where-Object { $_.Name -in @('msedgewebview2.exe', 'msedge.dll', 'msedge_elf.dll') }
+          if ($runtimeFiles) {
+            $runtimeFiles | ForEach-Object { Write-Error "Unexpected WebView2 runtime file: $($_.FullName)" }
+            throw 'The installer must not bundle the WebView2 runtime.'
+          }
+
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup --yes --no-progress
