@@ -512,21 +512,18 @@ public sealed class AppleMusicApiClient
         return await GetApiResourcePageAsync(new Uri(ApiRoot, endpoint), cancellationToken);
     }
 
-    public Task<MusicResourcePage> GetArtistTopSongsPageAsync(MusicResource artist, CancellationToken cancellationToken = default) =>
-        GetArtistViewPageAsync(artist, "top-songs", cancellationToken);
+    public Task<MusicResourcePage> GetArtistCatalogViewPageAsync(
+        MusicResource artist,
+        string view,
+        CancellationToken cancellationToken = default) =>
+        GetArtistViewPageAsync(artist, view, cancellationToken);
 
-    public Task<MusicResourcePage> GetArtistTopMusicVideosPageAsync(MusicResource artist, CancellationToken cancellationToken = default) =>
-        GetArtistViewPageAsync(artist, "top-music-videos", cancellationToken);
-
-    public async Task<IReadOnlyList<MusicResource>> GetArtistTopSongsAsync(MusicResource artist, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<MusicResource>> GetArtistCatalogViewAsync(
+        MusicResource artist,
+        string view,
+        CancellationToken cancellationToken = default)
     {
-        var endpoint = await GetArtistViewEndpointAsync(artist, "top-songs", cancellationToken);
-        return await GetAllPagesAsync(endpoint, cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<MusicResource>> GetArtistTopMusicVideosAsync(MusicResource artist, CancellationToken cancellationToken = default)
-    {
-        var endpoint = await GetArtistViewEndpointAsync(artist, "top-music-videos", cancellationToken);
+        var endpoint = await GetArtistViewEndpointAsync(artist, view, cancellationToken);
         return await GetAllPagesAsync(endpoint, cancellationToken);
     }
 
@@ -541,6 +538,13 @@ public sealed class AppleMusicApiClient
         if (artist.Type is not ("artists" or "artist"))
         {
             throw new InvalidOperationException("Artist catalog views are available for catalog artists.");
+        }
+
+        if (view is not ("appears-on-albums" or "compilation-albums" or "featured-albums" or
+            "featured-music-videos" or "featured-playlists" or "full-albums" or "latest-release" or
+            "live-albums" or "similar-artists" or "singles" or "top-music-videos" or "top-songs"))
+        {
+            throw new ArgumentOutOfRangeException(nameof(view), "Apple Music does not document this artist view.");
         }
 
         var storefront = await ResolveStorefrontAsync(cancellationToken);

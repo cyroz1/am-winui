@@ -21,10 +21,23 @@
             <Button x:Name="FavoriteParentButton" Grid.Column="2" Content="Add to favorites" Click="OnFavoriteParentClicked" IsEnabled="False" />
             <Button x:Name="AddParentButton" Grid.Column="3" Content="Add to library" Click="OnAddParentClicked" IsEnabled="False" />
         </Grid>
-        <StackPanel x:Name="ArtistViewButtons" Grid.Row="2" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
-            <Button x:Name="ArtistAlbumsButton" Content="Albums" Click="OnArtistAlbumsClicked" />
-            <Button x:Name="ArtistTopSongsButton" Content="Top songs" Click="OnArtistTopSongsClicked" />
-            <Button x:Name="ArtistTopMusicVideosButton" Content="Top music videos" Click="OnArtistTopMusicVideosClicked" />
+        <StackPanel x:Name="ArtistViewSelector" Grid.Row="2" Orientation="Horizontal" Spacing="10" Visibility="Collapsed">
+            <TextBlock Text="Browse" VerticalAlignment="Center" Opacity="0.72" />
+            <ComboBox x:Name="ArtistViewsBox" MinWidth="260" SelectionChanged="OnArtistViewSelectionChanged">
+                <ComboBoxItem Content="Albums" Tag="albums" />
+                <ComboBoxItem Content="Top songs" Tag="top-songs" />
+                <ComboBoxItem Content="Top music videos" Tag="top-music-videos" />
+                <ComboBoxItem Content="Appears on albums" Tag="appears-on-albums" />
+                <ComboBoxItem Content="Compilation albums" Tag="compilation-albums" />
+                <ComboBoxItem Content="Featured albums" Tag="featured-albums" />
+                <ComboBoxItem Content="Featured music videos" Tag="featured-music-videos" />
+                <ComboBoxItem Content="Featured playlists" Tag="featured-playlists" />
+                <ComboBoxItem Content="Full albums" Tag="full-albums" />
+                <ComboBoxItem Content="Latest release" Tag="latest-release" />
+                <ComboBoxItem Content="Live albums" Tag="live-albums" />
+                <ComboBoxItem Content="Similar artists" Tag="similar-artists" />
+                <ComboBoxItem Content="Singles" Tag="singles" />
+            </ComboBox>
         </StackPanel>
         <ListView
             x:Name="RelatedList"

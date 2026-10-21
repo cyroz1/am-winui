@@ -44,6 +44,9 @@ public sealed partial class ResourcePage : Page
         _selected = null;
         _nextPage = null;
         _artistView = ArtistView.Albums;
+        ArtistViewsBox.SelectedItem = ArtistViewsBox.Items
+            .OfType<ComboBoxItem>()
+            .FirstOrDefault(item => string.Equals(item.Tag as string, GetArtistViewKey(_artistView), StringComparison.Ordinal));
         _related.Clear();
         UpdateActions();
 
@@ -133,24 +136,73 @@ public sealed partial class ResourcePage : Page
 
     private Task<MusicResourcePage> GetArtistViewPageAsync(MusicResource artist) => _artistView switch
     {
-        ArtistView.TopSongs => App.MusicApi.GetArtistTopSongsPageAsync(artist),
-        ArtistView.TopMusicVideos => App.MusicApi.GetArtistTopMusicVideosPageAsync(artist),
-        _ => App.MusicApi.GetRelatedResourcesPageAsync(artist)
+        ArtistView.Albums => App.MusicApi.GetRelatedResourcesPageAsync(artist),
+        _ => App.MusicApi.GetArtistCatalogViewPageAsync(artist, GetArtistViewKey(_artistView))
     };
 
     private Task<IReadOnlyList<MusicResource>> GetArtistViewItemsAsync(MusicResource artist) => _artistView switch
     {
-        ArtistView.TopSongs => App.MusicApi.GetArtistTopSongsAsync(artist),
-        ArtistView.TopMusicVideos => App.MusicApi.GetArtistTopMusicVideosAsync(artist),
-        _ => App.MusicApi.GetRelatedResourcesAsync(artist)
+        ArtistView.Albums => App.MusicApi.GetRelatedResourcesAsync(artist),
+        _ => App.MusicApi.GetArtistCatalogViewAsync(artist, GetArtistViewKey(_artistView))
     };
 
     private static string GetArtistViewLabel(ArtistView view) => view switch
     {
         ArtistView.TopSongs => "top songs",
         ArtistView.TopMusicVideos => "top music videos",
+        ArtistView.AppearsOnAlbums => "albums this artist appears on",
+        ArtistView.CompilationAlbums => "compilation albums",
+        ArtistView.FeaturedAlbums => "featured albums",
+        ArtistView.FeaturedMusicVideos => "featured music videos",
+        ArtistView.FeaturedPlaylists => "featured playlists",
+        ArtistView.FullAlbums => "full albums",
+        ArtistView.LatestRelease => "latest release",
+        ArtistView.LiveAlbums => "live albums",
+        ArtistView.SimilarArtists => "similar artists",
+        ArtistView.Singles => "singles",
         _ => "albums"
     };
+
+    private static string GetArtistViewKey(ArtistView view) => view switch
+    {
+        ArtistView.TopSongs => "top-songs",
+        ArtistView.TopMusicVideos => "top-music-videos",
+        ArtistView.AppearsOnAlbums => "appears-on-albums",
+        ArtistView.CompilationAlbums => "compilation-albums",
+        ArtistView.FeaturedAlbums => "featured-albums",
+        ArtistView.FeaturedMusicVideos => "featured-music-videos",
+        ArtistView.FeaturedPlaylists => "featured-playlists",
+        ArtistView.FullAlbums => "full-albums",
+        ArtistView.LatestRelease => "latest-release",
+        ArtistView.LiveAlbums => "live-albums",
+        ArtistView.SimilarArtists => "similar-artists",
+        ArtistView.Singles => "singles",
+        _ => "albums"
+    };
+
+    private static ArtistView? GetArtistView(string key) => key switch
+    {
+        "albums" => ArtistView.Albums,
+        "top-songs" => ArtistView.TopSongs,
+        "top-music-videos" => ArtistView.TopMusicVideos,
+        "appears-on-albums" => ArtistView.AppearsOnAlbums,
+        "compilation-albums" => ArtistView.CompilationAlbums,
+        "featured-albums" => ArtistView.FeaturedAlbums,
+        "featured-music-videos" => ArtistView.FeaturedMusicVideos,
+        "featured-playlists" => ArtistView.FeaturedPlaylists,
+        "full-albums" => ArtistView.FullAlbums,
+        "latest-release" => ArtistView.LatestRelease,
+        "live-albums" => ArtistView.LiveAlbums,
+        "similar-artists" => ArtistView.SimilarArtists,
+        "singles" => ArtistView.Singles,
+        _ => null
+    };
+
+    private static bool IsArtistViewPlayable(ArtistView view) => view is
+        ArtistView.TopSongs or ArtistView.TopMusicVideos or ArtistView.FeaturedMusicVideos;
+
+    private static bool IsArtistVideoView(ArtistView view) => view is
+        ArtistView.TopMusicVideos or ArtistView.FeaturedMusicVideos;
 
     private void OnBackClicked(object sender, RoutedEventArgs e)
     {
@@ -160,14 +212,13 @@ public sealed partial class ResourcePage : Page
         }
     }
 
-    private async void OnArtistAlbumsClicked(object sender, RoutedEventArgs e) =>
-        await SetArtistViewAsync(ArtistView.Albums);
-
-    private async void OnArtistTopSongsClicked(object sender, RoutedEventArgs e) =>
-        await SetArtistViewAsync(ArtistView.TopSongs);
-
-    private async void OnArtistTopMusicVideosClicked(object sender, RoutedEventArgs e) =>
-        await SetArtistViewAsync(ArtistView.TopMusicVideos);
+    private async void OnArtistViewSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ArtistViewsBox.SelectedItem is ComboBoxItem { Tag: string key } && GetArtistView(key) is ArtistView view)
+        {
+            await SetArtistViewAsync(view);
+        }
+    }
 
     private async Task SetArtistViewAsync(ArtistView view)
     {
@@ -268,7 +319,7 @@ public sealed partial class ResourcePage : Page
                 ? "Playing available previews from the selection."
                 : IsCatalogArtist(resource) && _artistView == ArtistView.TopSongs
                     ? "Playing available top song previews from the selected track."
-                    : IsCatalogArtist(resource) && _artistView == ArtistView.TopMusicVideos
+                    : IsCatalogArtist(resource) && IsArtistVideoView(_artistView)
                         ? "Playing available music video previews from the selected video."
                         : "Playing the selected preview and following tracks.";
         }
@@ -315,7 +366,8 @@ public sealed partial class ResourcePage : Page
 
     private async void OnPlayAllClicked(object sender, RoutedEventArgs e)
     {
-        if (_resource is null || _loading)
+        if (_resource is null || _loading ||
+            (!IsTrackCollection(_resource) && !(IsCatalogArtist(_resource) && IsArtistViewPlayable(_artistView))))
         {
             return;
         }
@@ -326,7 +378,7 @@ public sealed partial class ResourcePage : Page
         UpdateActions();
         try
         {
-            var artistView = IsCatalogArtist(resource) && _artistView != ArtistView.Albums;
+            var artistView = IsCatalogArtist(resource) && IsArtistViewPlayable(_artistView);
             var items = artistView
                 ? await GetArtistViewItemsAsync(resource)
                 : await App.MusicApi.GetRelatedResourcesAsync(resource);
@@ -337,9 +389,7 @@ public sealed partial class ResourcePage : Page
 
             await App.Player.PlayQueueAsync(items);
             ActionStatus.Text = artistView
-                ? _artistView == ArtistView.TopSongs
-                    ? "Playing available top song previews."
-                    : "Playing available music video previews."
+                ? $"Playing available previews from {GetArtistViewLabel(_artistView)}."
                 : "Playing available previews in this collection.";
         }
         catch (Exception exception)
@@ -439,21 +489,14 @@ public sealed partial class ResourcePage : Page
         FavoriteParentButton.IsEnabled = !_loading && !_addingToFavorites &&
                                          _resource is { CanBeFavorited: true } &&
                                          _resource.IsFavorited != true;
-        ArtistViewButtons.Visibility = IsCatalogArtist(_resource) ? Visibility.Visible : Visibility.Collapsed;
-        ArtistAlbumsButton.IsEnabled = !_loading && _artistView != ArtistView.Albums;
-        ArtistTopSongsButton.IsEnabled = !_loading && _artistView != ArtistView.TopSongs;
-        ArtistTopMusicVideosButton.IsEnabled = !_loading && _artistView != ArtistView.TopMusicVideos;
+        ArtistViewSelector.Visibility = IsCatalogArtist(_resource) ? Visibility.Visible : Visibility.Collapsed;
+        ArtistViewsBox.IsEnabled = !_loading;
         LoadMoreButton.Visibility = _nextPage is null ? Visibility.Collapsed : Visibility.Visible;
         LoadMoreButton.IsEnabled = !_loading && _nextPage is not null;
         OpenButton.IsEnabled = !_loading && _selected is not null && HasRelatedItems(_selected);
-        PlayAllButton.Content = _artistView switch
-        {
-            ArtistView.TopSongs => "Play all top songs",
-            ArtistView.TopMusicVideos => "Play all music video previews",
-            _ => "Play all previews"
-        };
+        PlayAllButton.Content = GetArtistViewPlayAllLabel(_artistView);
         PlayAllButton.IsEnabled = !_loading && _related.Count > 0 &&
-                                  (IsTrackCollection(_resource) || _artistView is ArtistView.TopSongs or ArtistView.TopMusicVideos);
+                                  (IsTrackCollection(_resource) || IsArtistViewPlayable(_artistView));
         var selectedItemCount = SelectedPlaylistItems.Count;
         var playableCount = SelectedPlaylistItems.Count(static item => item.CanPlayPreview);
         var previewLabel = playableCount == 1 ? "preview" : "previews";
@@ -492,10 +535,28 @@ public sealed partial class ResourcePage : Page
     private static bool HasRelatedItems(MusicResource resource) => resource.Type is
         "albums" or "album" or "library-albums" or "artists" or "artist" or "library-artists" or "playlists" or "playlist" or "library-playlists";
 
+    private static string GetArtistViewPlayAllLabel(ArtistView view) => view switch
+    {
+        ArtistView.TopSongs => "Play all top songs",
+        ArtistView.TopMusicVideos => "Play all music video previews",
+        ArtistView.FeaturedMusicVideos => "Play all featured video previews",
+        _ => "Play all previews"
+    };
+
     private enum ArtistView
     {
         Albums,
         TopSongs,
-        TopMusicVideos
+        TopMusicVideos,
+        AppearsOnAlbums,
+        CompilationAlbums,
+        FeaturedAlbums,
+        FeaturedMusicVideos,
+        FeaturedPlaylists,
+        FullAlbums,
+        LatestRelease,
+        LiveAlbums,
+        SimilarArtists,
+        Singles
     }
 }
