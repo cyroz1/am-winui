@@ -15,6 +15,10 @@ public sealed partial class LibraryPage : Page
     private bool _isSearching;
     private bool _resolvingPlayback;
     private bool _addingToFavorites;
+    private bool _ratingLoading;
+    private bool _ratingUpdating;
+    private int? _selectedRating;
+    private CancellationTokenSource? _ratingLookupCancellation;
     private IReadOnlyList<MusicResource> SelectedFavoriteItems => LibraryList.SelectedItems
         .OfType<MusicResource>()
         .Where(static item => item.CanBeFavorited && !item.IsFavorited)
@@ -203,12 +207,68 @@ public sealed partial class LibraryPage : Page
         LoadMoreButton.IsEnabled = !_loading && _nextPages.Count > 0;
     }
 
-    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         _selected = e.AddedItems.OfType<MusicResource>().LastOrDefault()
             ?? LibraryList.SelectedItems.OfType<MusicResource>().LastOrDefault();
         ActionStatus.Text = "";
+        _selectedRating = null;
         UpdateActions();
+        await LoadSelectedRatingAsync(_selected);
+    }
+
+    private async Task LoadSelectedRatingAsync(MusicResource? item)
+    {
+        _ratingLookupCancellation?.Cancel();
+        _ratingLookupCancellation?.Dispose();
+        _ratingLookupCancellation = null;
+        _ratingLoading = false;
+        if (!SupportsLibraryRating(item))
+        {
+            UpdateActions();
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        _ratingLookupCancellation = cancellation;
+        _ratingLoading = true;
+        ActionStatus.Text = "Loading saved rating…";
+        UpdateActions();
+        try
+        {
+            var rating = await App.MusicApi.GetRatingAsync(item!, cancellation.Token);
+            if (!cancellation.IsCancellationRequested && ReferenceEquals(_selected, item))
+            {
+                _selectedRating = rating;
+                ActionStatus.Text = rating switch
+                {
+                    1 => "This item is liked.",
+                    -1 => "This item is disliked.",
+                    _ => "This item has no rating."
+                };
+            }
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (!cancellation.IsCancellationRequested && ReferenceEquals(_selected, item))
+            {
+                ActionStatus.Text = exception.Message;
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(_ratingLookupCancellation, cancellation))
+            {
+                _ratingLookupCancellation = null;
+                _ratingLoading = false;
+                UpdateActions();
+            }
+
+            cancellation.Dispose();
+        }
     }
 
     private void OnOpenClicked(object sender, RoutedEventArgs e)
@@ -327,19 +387,34 @@ public sealed partial class LibraryPage : Page
 
     private async Task RateSelectedAsync(int? value, string successMessage)
     {
-        if (_selected is null)
+        var selected = _selected;
+        if (!SupportsLibraryRating(selected) || _ratingUpdating || _ratingLoading)
         {
             return;
         }
 
+        _ratingUpdating = true;
+        UpdateActions();
         try
         {
-            await App.MusicApi.SetRatingAsync(_selected, value);
-            ActionStatus.Text = successMessage;
+            await App.MusicApi.SetRatingAsync(selected!, value);
+            if (ReferenceEquals(_selected, selected))
+            {
+                _selectedRating = value;
+                ActionStatus.Text = successMessage;
+            }
         }
         catch (Exception exception)
         {
-            ActionStatus.Text = exception.Message;
+            if (ReferenceEquals(_selected, selected))
+            {
+                ActionStatus.Text = exception.Message;
+            }
+        }
+        finally
+        {
+            _ratingUpdating = false;
+            UpdateActions();
         }
     }
 
@@ -366,11 +441,17 @@ public sealed partial class LibraryPage : Page
             _ => "Add to favorites"
         };
         FavoriteButton.IsEnabled = !_loading && !_addingToFavorites && favoriteItemCount > 0;
-        var supportsRating = _selected?.Type is "library-songs" or "library-albums" or "library-playlists" or "library-music-videos";
-        LikeButton.IsEnabled = supportsRating;
-        DislikeButton.IsEnabled = supportsRating;
-        ClearRatingButton.IsEnabled = supportsRating;
+        var supportsRating = SupportsLibraryRating(selected);
+        var canEditRating = supportsRating && !_ratingLoading && !_ratingUpdating;
+        LikeButton.Content = _selectedRating == 1 ? "Liked" : "Like";
+        DislikeButton.Content = _selectedRating == -1 ? "Disliked" : "Dislike";
+        LikeButton.IsEnabled = canEditRating && _selectedRating != 1;
+        DislikeButton.IsEnabled = canEditRating && _selectedRating != -1;
+        ClearRatingButton.IsEnabled = canEditRating && _selectedRating is not null;
     }
+
+    private static bool SupportsLibraryRating(MusicResource? item) => item?.Type is
+        "library-songs" or "library-albums" or "library-playlists" or "library-music-videos";
 
     private static bool HasRelatedItems(MusicResource item) => item.Type is
         "library-albums" or "library-artists" or "library-playlists";

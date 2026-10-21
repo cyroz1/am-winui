@@ -610,6 +610,42 @@ public sealed class AppleMusicApiClient
             : throw new InvalidOperationException("Apple Music did not return a catalog ID for this library item, so it can’t be added to favorites from this view.");
     }
 
+    public async Task<int?> GetRatingAsync(MusicResource resource, CancellationToken cancellationToken = default)
+    {
+        var ratingType = GetRatingResourceType(resource.Type);
+        using var request = CreateRequest(HttpMethod.Get, $"me/ratings/{ratingType}/{Uri.EscapeDataString(resource.Id)}");
+        using var response = await SendAsync(request, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        await EnsureSuccessAsync(response, cancellationToken);
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        if (document.RootElement.ValueKind != JsonValueKind.Object ||
+            !document.RootElement.TryGetProperty("data", out var data) ||
+            data.ValueKind != JsonValueKind.Array ||
+            data.GetArrayLength() == 0)
+        {
+            return null;
+        }
+
+        var ratingResource = data[0];
+        if (ratingResource.ValueKind != JsonValueKind.Object ||
+            !ratingResource.TryGetProperty("attributes", out var attributes) ||
+            attributes.ValueKind != JsonValueKind.Object ||
+            !attributes.TryGetProperty("value", out var value) ||
+            !value.TryGetInt32(out var rating) ||
+            rating is not (1 or -1))
+        {
+            return null;
+        }
+
+        return rating;
+    }
+
     public async Task SetRatingAsync(MusicResource resource, int? rating, CancellationToken cancellationToken = default)
     {
         if (rating.HasValue && rating.Value != 1 && rating.Value != -1)
@@ -617,18 +653,7 @@ public sealed class AppleMusicApiClient
             throw new ArgumentOutOfRangeException(nameof(rating), "Apple Music ratings must be 1, -1, or null to clear the rating.");
         }
 
-        var ratingType = resource.Type switch
-        {
-            "songs" or "song" => "songs",
-            "library-songs" => "library-songs",
-            "albums" or "album" => "albums",
-            "library-albums" => "library-albums",
-            "playlists" or "playlist" => "playlists",
-            "library-playlists" => "library-playlists",
-            "music-videos" => "music-videos",
-            "library-music-videos" => "library-music-videos",
-            _ => throw new InvalidOperationException("Apple Music does not support ratings for this resource type.")
-        };
+        var ratingType = GetRatingResourceType(resource.Type);
 
         var method = rating is null ? HttpMethod.Delete : HttpMethod.Put;
         using var request = CreateRequest(method, $"me/ratings/{ratingType}/{Uri.EscapeDataString(resource.Id)}");
@@ -645,6 +670,19 @@ public sealed class AppleMusicApiClient
         using var response = await SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
     }
+
+    private static string GetRatingResourceType(string type) => type switch
+    {
+        "songs" or "song" => "songs",
+        "library-songs" => "library-songs",
+        "albums" or "album" => "albums",
+        "library-albums" => "library-albums",
+        "playlists" or "playlist" => "playlists",
+        "library-playlists" => "library-playlists",
+        "music-videos" => "music-videos",
+        "library-music-videos" => "library-music-videos",
+        _ => throw new InvalidOperationException("Apple Music does not support ratings for this resource type.")
+    };
 
     public async Task<MusicResource?> CreatePlaylistAsync(string name, string? description = null, string? parentFolderId = null, CancellationToken cancellationToken = default)
     {
