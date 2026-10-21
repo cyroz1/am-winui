@@ -7,9 +7,6 @@ namespace AmNative.Models;
 
 public sealed class MusicResource
 {
-    private ImageSource? _artworkSource;
-    private bool _artworkSourceInitialized;
-
     public required string Id { get; init; }
     public required string Type { get; init; }
     public required string Name { get; init; }
@@ -75,20 +72,7 @@ public sealed class MusicResource
             ? (ArtistName.Length > 0 ? ArtistName : "Playlist")
             : string.Join(" · ", new[] { ArtistName, AlbumName }.Where(static value => !string.IsNullOrWhiteSpace(value)));
 
-    public ImageSource? ArtworkSource
-    {
-        get
-        {
-            if (_artworkSourceInitialized)
-            {
-                return _artworkSource;
-            }
-
-            _artworkSourceInitialized = true;
-            _artworkSource = ArtworkImageCache.Get(ArtworkUrl);
-            return _artworkSource;
-        }
-    }
+    public ImageSource? ArtworkSource => ArtworkImageCache.Get(ArtworkUrl);
 
     public static MusicResource FromJson(JsonElement resource)
     {
