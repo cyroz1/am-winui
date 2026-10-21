@@ -9,6 +9,8 @@ namespace AmNative.Services;
 public sealed class AppleMusicApiClient
 {
     private static readonly Uri ApiRoot = new("https://api.music.apple.com/v1/");
+    private const int MaximumReadRetryAttempts = 2;
+    private static readonly TimeSpan MaximumRetryDelay = TimeSpan.FromSeconds(15);
     private readonly CredentialStore _credentials;
     private readonly HttpClient _httpClient;
     private readonly SemaphoreSlim _storefrontLock = new(1, 1);
@@ -1057,14 +1059,89 @@ public sealed class AppleMusicApiClient
             throw new InvalidOperationException("Refusing to send Apple Music credentials to a nonstandard API endpoint.");
         }
 
-        var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        if ((int)response.StatusCode is >= 300 and < 400)
+        var contentBytes = request.Content is null
+            ? null
+            : await request.Content.ReadAsByteArrayAsync(cancellationToken);
+        var canRetry = request.Method == HttpMethod.Get;
+
+        for (var attempt = 0; ; attempt++)
         {
+            using var attemptRequest = CloneRequest(request, contentBytes);
+            var response = await _httpClient.SendAsync(
+                attemptRequest,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+
+            if ((int)response.StatusCode is >= 300 and < 400)
+            {
+                response.Dispose();
+                throw new InvalidOperationException("Apple redirected the API request. The redirect was refused to protect your credentials.");
+            }
+
+            if (!canRetry ||
+                attempt >= MaximumReadRetryAttempts ||
+                !IsTransientReadFailure(response.StatusCode))
+            {
+                return response;
+            }
+
+            var retryDelay = GetRetryDelay(response, attempt);
             response.Dispose();
-            throw new InvalidOperationException("Apple redirected the API request. The redirect was refused to protect your credentials.");
+            await Task.Delay(retryDelay, cancellationToken);
+        }
+    }
+
+    private static HttpRequestMessage CloneRequest(HttpRequestMessage source, byte[]? contentBytes)
+    {
+        var clone = new HttpRequestMessage(source.Method, source.RequestUri)
+        {
+            Version = source.Version,
+            VersionPolicy = source.VersionPolicy
+        };
+
+        foreach (var header in source.Headers)
+        {
+            clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
         }
 
-        return response;
+        if (contentBytes is not null)
+        {
+            clone.Content = new ByteArrayContent(contentBytes);
+            if (source.Content is not null)
+            {
+                foreach (var header in source.Content.Headers)
+                {
+                    if (!header.Key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
+                    {
+                        clone.Content.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                    }
+                }
+            }
+        }
+
+        return clone;
+    }
+
+    private static bool IsTransientReadFailure(HttpStatusCode statusCode) =>
+        (int)statusCode == 429 ||
+        statusCode is HttpStatusCode.RequestTimeout or
+            HttpStatusCode.InternalServerError or
+            HttpStatusCode.BadGateway or
+            HttpStatusCode.ServiceUnavailable or
+            HttpStatusCode.GatewayTimeout;
+
+    private static TimeSpan GetRetryDelay(HttpResponseMessage response, int attempt)
+    {
+        var retryAfter = response.Headers.RetryAfter;
+        TimeSpan? serverDelay = retryAfter?.Delta;
+        if (serverDelay is null && retryAfter?.Date is { } retryAt)
+        {
+            serverDelay = retryAt - (response.Headers.Date ?? DateTimeOffset.UtcNow);
+        }
+
+        var delay = serverDelay ?? TimeSpan.FromMilliseconds(250 * Math.Pow(2, attempt));
+        var boundedMilliseconds = Math.Clamp(delay.TotalMilliseconds, 0, MaximumRetryDelay.TotalMilliseconds);
+        return TimeSpan.FromMilliseconds(boundedMilliseconds);
     }
 
     private static Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
