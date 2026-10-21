@@ -13,8 +13,23 @@ public sealed partial class SettingsPage : Page
     public SettingsPage()
     {
         InitializeComponent();
+        ThemeBox.SelectedIndex = App.ThemePreference switch
+        {
+            ElementTheme.Light => 1,
+            ElementTheme.Dark => 2,
+            _ => 0
+        };
         UpdateStatus();
         UpdateConnectionSummary();
+    }
+
+    private void OnThemeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ThemeBox.SelectedItem is ComboBoxItem { Tag: string themeName } &&
+            Enum.TryParse(themeName, ignoreCase: true, out ElementTheme theme))
+        {
+            App.SetThemePreference(theme);
+        }
     }
 
     private void OnSaveClicked(object sender, RoutedEventArgs e)

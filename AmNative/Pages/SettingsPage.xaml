@@ -10,6 +10,17 @@
             </StackPanel>
             <Border Padding="16" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                 <StackPanel Spacing="8">
+                    <TextBlock Text="Appearance" FontWeight="SemiBold" />
+                    <TextBlock Text="Follow Windows or choose a fixed theme for AM Native." TextWrapping="Wrap" Opacity="0.72" />
+                    <ComboBox x:Name="ThemeBox" Header="App theme" SelectionChanged="OnThemeChanged" HorizontalAlignment="Left" MinWidth="180">
+                        <ComboBoxItem Content="Use Windows setting" Tag="Default" />
+                        <ComboBoxItem Content="Light" Tag="Light" />
+                        <ComboBoxItem Content="Dark" Tag="Dark" />
+                    </ComboBox>
+                </StackPanel>
+            </Border>
+            <Border Padding="16" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel Spacing="8">
                     <TextBlock Text="Saved connection" FontWeight="SemiBold" />
                     <TextBlock x:Name="DeveloperTokenSummary" TextWrapping="Wrap" />
                     <TextBlock x:Name="UserTokenSummary" TextWrapping="Wrap" />
