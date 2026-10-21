@@ -15,9 +15,15 @@ public sealed partial class ResourcePage : Page
     private bool _showArtistTopSongs;
     private bool _loading;
     private bool _addingToLibrary;
+    private bool _addingToFavorites;
     private IReadOnlyList<MusicResource> SelectedLibraryItems => RelatedList.SelectedItems
         .OfType<MusicResource>()
         .Where(static item => item.CanBeAddedToLibrary)
+        .DistinctBy(static item => (item.Type, item.Id))
+        .ToArray();
+    private IReadOnlyList<MusicResource> SelectedFavoriteItems => RelatedList.SelectedItems
+        .OfType<MusicResource>()
+        .Where(static item => item.CanBeFavorited && !item.IsFavorited)
         .DistinctBy(static item => (item.Type, item.Id))
         .ToArray();
     private IReadOnlyList<MusicResource> SelectedPlaylistItems => RelatedList.SelectedItems
@@ -190,7 +196,7 @@ public sealed partial class ResourcePage : Page
     {
         if (_resource is not null)
         {
-            await FavoriteAsync(_resource);
+            await FavoriteAsync(new[] { _resource });
         }
     }
 
@@ -324,24 +330,33 @@ public sealed partial class ResourcePage : Page
 
     private async void OnFavoriteClicked(object sender, RoutedEventArgs e)
     {
-        if (_selected is not null)
-        {
-            await FavoriteAsync(_selected);
-        }
+        await FavoriteAsync(SelectedFavoriteItems);
     }
 
-    private async Task FavoriteAsync(MusicResource resource)
+    private async Task FavoriteAsync(IEnumerable<MusicResource> resources)
     {
-        if (!resource.CanBeFavorited || resource.IsFavorited)
+        var items = resources
+            .Where(static item => item.CanBeFavorited && !item.IsFavorited)
+            .DistinctBy(static item => (item.Type, item.Id))
+            .ToArray();
+        if (items.Length == 0 || _addingToFavorites)
         {
             return;
         }
 
+        _addingToFavorites = true;
+        UpdateActions();
         try
         {
-            await App.MusicApi.AddToFavoritesAsync(resource);
-            resource.IsFavorited = true;
-            ActionStatus.Text = $"Added “{resource.Name}” to favorites.";
+            await App.MusicApi.AddToFavoritesAsync(items);
+            foreach (var item in items)
+            {
+                item.IsFavorited = true;
+            }
+
+            ActionStatus.Text = items.Length == 1
+                ? $"Requested “{items[0].Name}” be added to favorites."
+                : $"Requested {items.Length} items be added to favorites.";
         }
         catch (Exception exception)
         {
@@ -349,6 +364,7 @@ public sealed partial class ResourcePage : Page
         }
         finally
         {
+            _addingToFavorites = false;
             UpdateActions();
         }
     }
@@ -366,7 +382,7 @@ public sealed partial class ResourcePage : Page
     {
         AddParentButton.IsEnabled = !_loading && !_addingToLibrary && _resource?.CanBeAddedToLibrary == true;
         FavoriteParentButton.Content = _resource?.IsFavorited == true ? "Already favorited" : "Add to favorites";
-        FavoriteParentButton.IsEnabled = !_loading && _resource is { CanBeFavorited: true, IsFavorited: false };
+        FavoriteParentButton.IsEnabled = !_loading && !_addingToFavorites && _resource is { CanBeFavorited: true, IsFavorited: false };
         ArtistViewButtons.Visibility = IsCatalogArtist(_resource) ? Visibility.Visible : Visibility.Collapsed;
         ArtistAlbumsButton.IsEnabled = !_loading && _showArtistTopSongs;
         ArtistTopSongsButton.IsEnabled = !_loading && !_showArtistTopSongs;
@@ -390,8 +406,15 @@ public sealed partial class ResourcePage : Page
             ? $"Add {playlistItemCount} items to playlist"
             : "Add to playlist";
         PlaylistButton.IsEnabled = !_loading && playlistItemCount > 0;
-        FavoriteButton.Content = _selected?.IsFavorited == true ? "Already favorited" : "Add to favorites";
-        FavoriteButton.IsEnabled = !_loading && _selected is { CanBeFavorited: true, IsFavorited: false };
+        var favoriteItemCount = SelectedFavoriteItems.Count;
+        FavoriteButton.Content = favoriteItemCount switch
+        {
+            > 1 => $"Add {favoriteItemCount} to favorites",
+            1 => "Add to favorites",
+            _ when _selected?.IsFavorited == true => "Already favorited",
+            _ => "Add to favorites"
+        };
+        FavoriteButton.IsEnabled = !_loading && !_addingToFavorites && favoriteItemCount > 0;
     }
 
     private static bool IsArtist(MusicResource resource) => resource.Type is "artists" or "artist" or "library-artists";

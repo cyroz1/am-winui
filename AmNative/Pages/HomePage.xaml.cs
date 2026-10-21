@@ -16,10 +16,17 @@ public sealed partial class HomePage : Page
     private bool _loadingMoreRecentlyPlayed;
     private bool _resolvingPlayback;
     private bool _addingToLibrary;
+    private bool _addingToFavorites;
     private IReadOnlyList<MusicResource> SelectedLibraryItems => RecommendationsList.SelectedItems
         .OfType<MusicResource>()
         .Concat(RecentlyPlayedList.SelectedItems.OfType<MusicResource>())
         .Where(static item => item.CanBeAddedToLibrary)
+        .DistinctBy(static item => (item.Type, item.Id))
+        .ToArray();
+    private IReadOnlyList<MusicResource> SelectedFavoriteItems => RecommendationsList.SelectedItems
+        .OfType<MusicResource>()
+        .Concat(RecentlyPlayedList.SelectedItems.OfType<MusicResource>())
+        .Where(static item => item.CanBeFavorited && !item.IsFavorited)
         .DistinctBy(static item => (item.Type, item.Id))
         .ToArray();
     private IReadOnlyList<MusicResource> SelectedPlaylistItems => RecommendationsList.SelectedItems
@@ -221,16 +228,25 @@ public sealed partial class HomePage : Page
 
     private async void OnFavoriteClicked(object sender, RoutedEventArgs e)
     {
-        if (_selected is null || !_selected.CanBeFavorited || _selected.IsFavorited)
+        var items = SelectedFavoriteItems;
+        if (items.Count == 0 || _addingToFavorites)
         {
             return;
         }
 
+        _addingToFavorites = true;
+        UpdateActions();
         try
         {
-            await App.MusicApi.AddToFavoritesAsync(_selected);
-            _selected.IsFavorited = true;
-            ActionStatus.Text = $"Added “{_selected.Name}” to favorites.";
+            await App.MusicApi.AddToFavoritesAsync(items);
+            foreach (var item in items)
+            {
+                item.IsFavorited = true;
+            }
+
+            ActionStatus.Text = items.Count == 1
+                ? $"Requested “{items[0].Name}” be added to favorites."
+                : $"Requested {items.Count} items be added to favorites.";
         }
         catch (Exception exception)
         {
@@ -238,6 +254,7 @@ public sealed partial class HomePage : Page
         }
         finally
         {
+            _addingToFavorites = false;
             UpdateActions();
         }
     }
@@ -296,8 +313,15 @@ public sealed partial class HomePage : Page
             ? $"Add {playlistItemCount} items to playlist"
             : "Add to playlist";
         PlaylistButton.IsEnabled = !_loading && playlistItemCount > 0;
-        FavoriteButton.Content = _selected?.IsFavorited == true ? "Already favorited" : "Add to favorites";
-        FavoriteButton.IsEnabled = !_loading && _selected is { CanBeFavorited: true, IsFavorited: false };
+        var favoriteItemCount = SelectedFavoriteItems.Count;
+        FavoriteButton.Content = favoriteItemCount switch
+        {
+            > 1 => $"Add {favoriteItemCount} to favorites",
+            1 => "Add to favorites",
+            _ when _selected?.IsFavorited == true => "Already favorited",
+            _ => "Add to favorites"
+        };
+        FavoriteButton.IsEnabled = !_loading && !_addingToFavorites && favoriteItemCount > 0;
     }
 
     private static bool HasRelatedItems(MusicResource resource) => resource.Type is

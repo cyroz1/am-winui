@@ -468,33 +468,49 @@ public sealed class AppleMusicApiClient
         _ => throw new InvalidOperationException("This Apple Music item type cannot be added to the library.")
     };
 
-    public async Task AddToFavoritesAsync(MusicResource resource, CancellationToken cancellationToken = default)
-    {
-        var catalogType = resource.Type switch
-        {
-            "songs" or "song" => "songs",
-            "library-songs" => "songs",
-            "albums" or "album" => "albums",
-            "library-albums" => "albums",
-            "artists" or "artist" => "artists",
-            "library-artists" => "artists",
-            "playlists" or "playlist" => "playlists",
-            "library-playlists" => "playlists",
-            _ => throw new InvalidOperationException("Apple Music favorites are currently supported here for songs, albums, artists, and playlists.")
-        };
+    public Task AddToFavoritesAsync(MusicResource resource, CancellationToken cancellationToken = default) =>
+        AddToFavoritesAsync(new[] { resource }, cancellationToken);
 
+    public async Task AddToFavoritesAsync(IEnumerable<MusicResource> resources, CancellationToken cancellationToken = default)
+    {
+        var ids = resources
+            .Select(resource => (Type: GetFavoritesCatalogType(resource.Type), Id: GetFavoritesCatalogId(resource)))
+            .Distinct()
+            .ToArray();
+        if (ids.Length == 0)
+        {
+            throw new InvalidOperationException("Select at least one item that Apple Music can add to favorites.");
+        }
+
+        foreach (var batch in ids.Chunk(25))
+        {
+            var query = batch
+                .GroupBy(static item => item.Type)
+                .Select(group => $"ids%5B{group.Key}%5D={string.Join(",", group.Select(static item => Uri.EscapeDataString(item.Id)))}");
+            using var request = CreateRequest(HttpMethod.Post, $"me/favorites?{string.Join("&", query)}");
+            using var response = await SendAsync(request, cancellationToken);
+            await EnsureSuccessAsync(response, cancellationToken);
+        }
+    }
+
+    private static string GetFavoritesCatalogType(string type) => type switch
+    {
+        "songs" or "song" or "library-songs" => "songs",
+        "albums" or "album" or "library-albums" => "albums",
+        "artists" or "artist" or "library-artists" => "artists",
+        "playlists" or "playlist" or "library-playlists" => "playlists",
+        "music-videos" or "music-video" or "library-music-videos" => "music-videos",
+        _ => throw new InvalidOperationException("Apple Music favorites are supported here for songs, albums, artists, playlists, and music videos.")
+    };
+
+    private static string GetFavoritesCatalogId(MusicResource resource)
+    {
         var resourceId = resource.Type.StartsWith("library-", StringComparison.Ordinal)
             ? resource.CatalogId
             : resource.Id;
-        if (string.IsNullOrWhiteSpace(resourceId))
-        {
-            throw new InvalidOperationException("Apple Music did not return a catalog ID for this library item, so it can’t be added to favorites from this view.");
-        }
-
-        var endpoint = $"me/favorites?ids%5B{catalogType}%5D={Uri.EscapeDataString(resourceId)}";
-        using var request = CreateRequest(HttpMethod.Post, endpoint);
-        using var response = await SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        return !string.IsNullOrWhiteSpace(resourceId)
+            ? resourceId
+            : throw new InvalidOperationException("Apple Music did not return a catalog ID for this library item, so it can’t be added to favorites from this view.");
     }
 
     public async Task SetRatingAsync(MusicResource resource, int? rating, CancellationToken cancellationToken = default)

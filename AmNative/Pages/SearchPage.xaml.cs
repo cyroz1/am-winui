@@ -15,10 +15,16 @@ public sealed partial class SearchPage : Page
     private bool _showingChart;
     private bool _resolvingPlayback;
     private bool _addingToLibrary;
+    private bool _addingToFavorites;
     private string _chartLabel = "Top songs";
     private IReadOnlyList<MusicResource> SelectedLibraryItems => ResultsList.SelectedItems
         .OfType<MusicResource>()
         .Where(static item => item.CanBeAddedToLibrary)
+        .DistinctBy(static item => (item.Type, item.Id))
+        .ToArray();
+    private IReadOnlyList<MusicResource> SelectedFavoriteItems => ResultsList.SelectedItems
+        .OfType<MusicResource>()
+        .Where(static item => item.CanBeFavorited && !item.IsFavorited)
         .DistinctBy(static item => (item.Type, item.Id))
         .ToArray();
     private IReadOnlyList<MusicResource> SelectedPlaylistItems => ResultsList.SelectedItems
@@ -272,21 +278,34 @@ public sealed partial class SearchPage : Page
 
     private async void OnFavoriteClicked(object sender, RoutedEventArgs e)
     {
-        if (_selected is null)
+        var items = SelectedFavoriteItems;
+        if (items.Count == 0 || _addingToFavorites)
         {
             return;
         }
 
+        _addingToFavorites = true;
+        UpdateActions();
         try
         {
-            await App.MusicApi.AddToFavoritesAsync(_selected);
-            _selected.IsFavorited = true;
-            UpdateActions();
-            ActionStatus.Text = "Added to favorites.";
+            await App.MusicApi.AddToFavoritesAsync(items);
+            foreach (var item in items)
+            {
+                item.IsFavorited = true;
+            }
+
+            ActionStatus.Text = items.Count == 1
+                ? $"Requested “{items[0].Name}” be added to favorites."
+                : $"Requested {items.Count} items be added to favorites.";
         }
         catch (Exception exception)
         {
             ActionStatus.Text = exception.Message;
+        }
+        finally
+        {
+            _addingToFavorites = false;
+            UpdateActions();
         }
     }
 
@@ -338,9 +357,15 @@ public sealed partial class SearchPage : Page
             ? $"Add {playlistItemCount} items to playlist"
             : "Add to playlist";
         PlaylistButton.IsEnabled = playlistItemCount > 0;
-        var canFavorite = _selected?.CanBeFavorited == true;
-        FavoriteButton.Content = _selected?.IsFavorited == true ? "Already favorited" : "Add to favorites";
-        FavoriteButton.IsEnabled = canFavorite && _selected?.IsFavorited != true;
+        var favoriteItemCount = SelectedFavoriteItems.Count;
+        FavoriteButton.Content = favoriteItemCount switch
+        {
+            > 1 => $"Add {favoriteItemCount} to favorites",
+            1 => "Add to favorites",
+            _ when _selected?.IsFavorited == true => "Already favorited",
+            _ => "Add to favorites"
+        };
+        FavoriteButton.IsEnabled = !_loading && !_addingToFavorites && favoriteItemCount > 0;
         var supportsRating = _selected?.Type is "songs" or "albums" or "playlists" or "music-videos";
         LikeButton.IsEnabled = supportsRating;
         DislikeButton.IsEnabled = supportsRating;

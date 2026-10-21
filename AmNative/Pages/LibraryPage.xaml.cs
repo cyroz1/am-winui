@@ -14,6 +14,12 @@ public sealed partial class LibraryPage : Page
     private bool _loading;
     private bool _isSearching;
     private bool _resolvingPlayback;
+    private bool _addingToFavorites;
+    private IReadOnlyList<MusicResource> SelectedFavoriteItems => LibraryList.SelectedItems
+        .OfType<MusicResource>()
+        .Where(static item => item.CanBeFavorited && !item.IsFavorited)
+        .DistinctBy(static item => (item.Type, item.Id))
+        .ToArray();
     private IReadOnlyList<MusicResource> SelectedPlaylistItems => LibraryList.SelectedItems
         .OfType<MusicResource>()
         .Where(static item => item.CanBeAddedToPlaylist)
@@ -255,21 +261,34 @@ public sealed partial class LibraryPage : Page
 
     private async void OnFavoriteClicked(object sender, RoutedEventArgs e)
     {
-        if (_selected is null || !_selected.CanBeFavorited || _selected.IsFavorited)
+        var items = SelectedFavoriteItems;
+        if (items.Count == 0 || _addingToFavorites)
         {
             return;
         }
 
+        _addingToFavorites = true;
+        UpdateActions();
         try
         {
-            await App.MusicApi.AddToFavoritesAsync(_selected);
-            _selected.IsFavorited = true;
-            ActionStatus.Text = "Added to favorites.";
-            UpdateActions();
+            await App.MusicApi.AddToFavoritesAsync(items);
+            foreach (var item in items)
+            {
+                item.IsFavorited = true;
+            }
+
+            ActionStatus.Text = items.Count == 1
+                ? $"Requested “{items[0].Name}” be added to favorites."
+                : $"Requested {items.Count} items be added to favorites.";
         }
         catch (Exception exception)
         {
             ActionStatus.Text = exception.Message;
+        }
+        finally
+        {
+            _addingToFavorites = false;
+            UpdateActions();
         }
     }
 
@@ -309,8 +328,15 @@ public sealed partial class LibraryPage : Page
             ? $"Add {playlistItemCount} items to playlist"
             : "Add to playlist";
         AddButton.IsEnabled = playlistItemCount > 0;
-        FavoriteButton.Content = selected?.IsFavorited == true ? "Already favorited" : "Add to favorites";
-        FavoriteButton.IsEnabled = selected is { CanBeFavorited: true, IsFavorited: false };
+        var favoriteItemCount = SelectedFavoriteItems.Count;
+        FavoriteButton.Content = favoriteItemCount switch
+        {
+            > 1 => $"Add {favoriteItemCount} to favorites",
+            1 => "Add to favorites",
+            _ when selected?.IsFavorited == true => "Already favorited",
+            _ => "Add to favorites"
+        };
+        FavoriteButton.IsEnabled = !_loading && !_addingToFavorites && favoriteItemCount > 0;
         var supportsRating = _selected?.Type is "library-songs" or "library-albums" or "library-playlists" or "library-music-videos";
         LikeButton.IsEnabled = supportsRating;
         DislikeButton.IsEnabled = supportsRating;

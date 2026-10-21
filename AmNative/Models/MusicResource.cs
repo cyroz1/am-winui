@@ -26,8 +26,8 @@ public sealed class MusicResource
         "playlists" or "playlist" or "music-videos" or "music-video";
     public bool CanBeFavorited => Type switch
     {
-        "songs" or "song" or "albums" or "album" or "artists" or "artist" or "playlists" or "playlist" => true,
-        "library-songs" or "library-albums" or "library-artists" or "library-playlists" =>
+        "songs" or "song" or "albums" or "album" or "artists" or "artist" or "playlists" or "playlist" or "music-videos" or "music-video" => true,
+        "library-songs" or "library-albums" or "library-artists" or "library-playlists" or "library-music-videos" =>
             !string.IsNullOrWhiteSpace(CatalogId),
         _ => false
     };
