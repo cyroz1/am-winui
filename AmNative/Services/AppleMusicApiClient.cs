@@ -247,6 +247,70 @@ public sealed class AppleMusicApiClient
             new Uri(ApiRoot, "me/recent/played/tracks?types=songs,library-songs,music-videos,library-music-videos&limit=30"),
             cancellationToken);
 
+    public async Task<ReplaySummary> GetReplaySummaryAsync(CancellationToken cancellationToken = default)
+    {
+        const string endpoint = "me/music-summaries?filter%5Byear%5D=latest" +
+                                "&views=top-songs,top-albums,top-artists" +
+                                "&include%5Bsong-period-summaries%5D=song" +
+                                "&include%5Balbum-period-summaries%5D=album" +
+                                "&include%5Bartist-period-summaries%5D=artist";
+        var requestUri = new Uri(ApiRoot, endpoint);
+        using var request = CreateRequest(HttpMethod.Get, requestUri);
+        using var response = await SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        if (!document.RootElement.TryGetProperty("data", out var data) ||
+            data.ValueKind != JsonValueKind.Array || data.GetArrayLength() == 0)
+        {
+            return new ReplaySummary(null, EmptyResourcePage(), EmptyResourcePage(), EmptyResourcePage());
+        }
+
+        var summary = data[0];
+        var year = summary.ValueKind == JsonValueKind.Object &&
+                   summary.TryGetProperty("attributes", out var attributes) &&
+                   attributes.ValueKind == JsonValueKind.Object &&
+                   attributes.TryGetProperty("year", out var yearValue) &&
+                   yearValue.ValueKind == JsonValueKind.Number &&
+                   yearValue.TryGetInt32(out var parsedYear)
+            ? parsedYear
+            : (int?)null;
+
+        return new ReplaySummary(
+            year,
+            ReadReplayView(summary, "top-songs", "song", requestUri),
+            ReadReplayView(summary, "top-albums", "album", requestUri),
+            ReadReplayView(summary, "top-artists", "artist", requestUri));
+    }
+
+    public async Task<MusicResourcePage> GetNextReplayViewPageAsync(
+        Uri nextPage,
+        string relationshipName,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsApiUri(nextPage))
+        {
+            throw new InvalidOperationException("Refusing to fetch a Replay pagination link outside the Apple Music API.");
+        }
+
+        using var request = CreateRequest(HttpMethod.Get, nextPage);
+        using var response = await SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+
+        var items = document.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array
+            ? ReadReplayPeriodItems(data, relationshipName)
+            : Array.Empty<MusicResource>();
+        var nextPages = TryReadNextPage(document.RootElement, nextPage, out var next)
+            ? new[] { next }
+            : Array.Empty<Uri>();
+        return new MusicResourcePage(items, nextPages);
+    }
+
     public async Task<IReadOnlyList<MusicResource>> GetRecommendationsAsync(CancellationToken cancellationToken = default)
     {
         using var request = CreateRequest(HttpMethod.Get, "me/recommendations?include=contents");
@@ -730,6 +794,58 @@ public sealed class AppleMusicApiClient
 
         return new MusicResourcePage(resources, nextPages);
     }
+
+    private static MusicResourcePage ReadReplayView(JsonElement summary, string viewName, string relationshipName, Uri baseUri)
+    {
+        if (!summary.TryGetProperty("views", out var views) || views.ValueKind != JsonValueKind.Object ||
+            !views.TryGetProperty(viewName, out var view) || view.ValueKind != JsonValueKind.Object ||
+            !view.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+        {
+            return EmptyResourcePage();
+        }
+
+        var items = ReadReplayPeriodItems(data, relationshipName);
+        var nextPages = TryReadNextPage(view, baseUri, out var nextPage)
+            ? new[] { nextPage }
+            : Array.Empty<Uri>();
+        return new MusicResourcePage(items, nextPages);
+    }
+
+    private static IReadOnlyList<MusicResource> ReadReplayPeriodItems(JsonElement periodItems, string relationshipName)
+    {
+        var resources = new List<MusicResource>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var periodItem in periodItems.EnumerateArray())
+        {
+            if (periodItem.ValueKind != JsonValueKind.Object ||
+                !periodItem.TryGetProperty("relationships", out var relationships) || relationships.ValueKind != JsonValueKind.Object ||
+                !relationships.TryGetProperty(relationshipName, out var relationship) || relationship.ValueKind != JsonValueKind.Object ||
+                !relationship.TryGetProperty("data", out var relatedData) || relatedData.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            foreach (var resource in relatedData.EnumerateArray())
+            {
+                if (resource.ValueKind != JsonValueKind.Object ||
+                    !resource.TryGetProperty("attributes", out var attributes) || attributes.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var item = MusicResource.FromJson(resource);
+                if (item.Id.Length > 0 && seen.Add($"{item.Type}:{item.Id}"))
+                {
+                    resources.Add(item);
+                }
+            }
+        }
+
+        return resources;
+    }
+
+    private static MusicResourcePage EmptyResourcePage() =>
+        new(Array.Empty<MusicResource>(), Array.Empty<Uri>());
 
     private static bool TryReadNextPage(JsonElement collection, Uri baseUri, out Uri nextPage)
     {

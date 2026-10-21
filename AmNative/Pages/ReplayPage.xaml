@@ -1,0 +1,41 @@
+<Page
+    x:Class="AmNative.Pages.ReplayPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Padding="32,28" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="16">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <StackPanel Spacing="4">
+                <TextBlock x:Name="TitleText" Text="Apple Music Replay" FontSize="30" FontWeight="Bold" />
+                <TextBlock Text="Your most-played songs, albums, and artists from the latest eligible year." Opacity="0.68" TextWrapping="Wrap" />
+            </StackPanel>
+            <Button x:Name="RefreshButton" Grid.Column="1" Content="Refresh" Click="OnRefreshClicked" VerticalAlignment="Center" />
+        </Grid>
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+            <ComboBox x:Name="ViewBox" SelectedIndex="0" SelectionChanged="OnViewChanged" MinWidth="150">
+                <ComboBoxItem Content="Top songs" Tag="top-songs" />
+                <ComboBoxItem Content="Top albums" Tag="top-albums" />
+                <ComboBoxItem Content="Top artists" Tag="top-artists" />
+            </ComboBox>
+            <TextBlock x:Name="StatusText" Grid.Column="1" Text="Connect Apple Music to load Replay." VerticalAlignment="Center" Opacity="0.72" />
+            <Button x:Name="LoadMoreButton" Grid.Column="2" Content="Load more" Visibility="Collapsed" Click="OnLoadMoreClicked" />
+        </Grid>
+        <ListView
+            x:Name="ReplayList"
+            Grid.Row="2"
+            SelectionChanged="OnSelectionChanged"
+            ItemTemplate="{StaticResource MusicResourceRowTemplate}"
+            SelectionMode="Extended" />
+        <StackPanel Grid.Row="3" Spacing="6">
+            <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button x:Name="OpenButton" Content="Open" IsEnabled="False" Click="OnOpenClicked" />
+                    <Button x:Name="PlayButton" Content="Play previews" IsEnabled="False" Click="OnPlayClicked" />
+                    <Button x:Name="AddButton" Content="Add to library" IsEnabled="False" Click="OnAddClicked" />
+                    <Button x:Name="PlaylistButton" Content="Add to playlist" IsEnabled="False" Click="OnAddToPlaylistClicked" />
+                    <Button x:Name="FavoriteButton" Content="Add to favorites" IsEnabled="False" Click="OnFavoriteClicked" />
+                </StackPanel>
+            </ScrollViewer>
+            <TextBlock x:Name="ActionStatus" Opacity="0.7" TextWrapping="Wrap" />
+        </StackPanel>
+    </Grid>
+</Page>

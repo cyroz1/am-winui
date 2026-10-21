@@ -48,6 +48,7 @@ public sealed partial class MainWindow : Window
             "Home" => typeof(HomePage),
             "Search" => typeof(SearchPage),
             "Library" => typeof(LibraryPage),
+            "Replay" => typeof(ReplayPage),
             "Playlists" => typeof(PlaylistsPage),
             "Settings" => typeof(SettingsPage),
             _ => typeof(HomePage)

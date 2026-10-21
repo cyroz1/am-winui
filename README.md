@@ -19,6 +19,7 @@ AM Native is a native Windows desktop client for Apple Music. The UI uses WinUI 
 - Apply or clear like/dislike ratings for supported catalog and library items.
 - Resolve Apple-provided catalog previews for library songs when their `playParams` include a catalog ID.
 - Show personalized recommendations and recently played tracks on the home page.
+- Browse Apple Music [Replay summaries](https://developer.apple.com/documentation/applemusicapi/get-the-user%27s-replay-data) for top songs, albums, and artists in the latest eligible year, with pagination and native preview/library actions.
 - Open albums, artists, and playlists to browse their related albums or tracks. Catalog artist pages include a paginated top songs view and native preview queues.
 - Store Music User Tokens in Windows Credential Manager and optionally sign one-hour Apple Music developer tokens locally from a `.p8` key, Team ID, and Key ID. The private key stays in Windows Credential Manager.
 - Retain an optional full Apple Music web cookie using Windows DPAPI in local app data; extract its Music User Token for documented library API requests without forwarding the cookie header.
