@@ -1,6 +1,5 @@
 using AmNative.Pages;
 using AmNative.Playback;
-using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -11,7 +10,7 @@ namespace AmNative;
 
 public sealed partial class MainWindow : Window
 {
-    private readonly DispatcherQueueTimer _playbackProgressTimer;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _playbackProgressTimer;
     private bool _isScrubbing;
 
     public MainWindow()
