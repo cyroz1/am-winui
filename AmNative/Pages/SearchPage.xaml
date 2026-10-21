@@ -5,7 +5,7 @@
     <Grid Padding="32,28" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" RowSpacing="16">
         <StackPanel Spacing="4">
             <TextBlock Text="Search Apple Music" FontSize="30" FontWeight="Bold" />
-            <TextBlock Text="Find songs, albums, artists, playlists, and music videos. Select multiple results to add catalog items to your library or favorites, or choose tracks and videos for a playlist." Opacity="0.68" />
+            <TextBlock Text="Find songs, albums, artists, playlists, and music videos. Filter search and chart results by genre, then select items to add to your library, favorites, or playlists." Opacity="0.68" />
         </StackPanel>
         <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="10">
             <AutoSuggestBox
@@ -25,9 +25,17 @@
             </ComboBox>
             <Button x:Name="BrowseChartButton" Content="Browse chart" Click="OnBrowseChartClicked" />
         </StackPanel>
-        <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
             <TextBlock x:Name="StatusText" Text="Connect Apple Music in Settings to search." Opacity="0.72" VerticalAlignment="Center" />
-            <Button x:Name="LoadMoreButton" Grid.Column="1" Content="Load more" Visibility="Collapsed" Click="OnLoadMoreClicked" />
+            <ComboBox
+                x:Name="GenreFilterBox"
+                Grid.Column="1"
+                MinWidth="170"
+                PlaceholderText="All genres"
+                ToolTipService.ToolTip="Filter loaded results by genre"
+                AutomationProperties.Name="Filter Apple Music results by genre"
+                SelectionChanged="OnGenreChanged" />
+            <Button x:Name="LoadMoreButton" Grid.Column="2" Content="Load more" Visibility="Collapsed" Click="OnLoadMoreClicked" />
         </Grid>
         <ListView
             x:Name="ResultsList"

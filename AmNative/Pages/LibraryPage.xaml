@@ -5,7 +5,7 @@
     <Grid Padding="32,28" RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="16">
         <StackPanel Spacing="4">
             <TextBlock Text="Your library" FontSize="30" FontWeight="Bold" />
-            <TextBlock Text="Browse songs, albums, artists, playlists, and videos saved to your Apple Music account. Filter for favorites and use Ctrl or Shift to select items for playback or playlists." Opacity="0.68" />
+            <TextBlock Text="Browse songs, albums, artists, playlists, and videos saved to your Apple Music account. Filter by genre or favorites, and use Ctrl or Shift to select items for playback or playlists." Opacity="0.68" />
         </StackPanel>
         <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
             <ComboBox x:Name="KindBox" SelectedIndex="0" SelectionChanged="OnKindChanged" MinWidth="150">

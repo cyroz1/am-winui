@@ -8,10 +8,13 @@ namespace AmNative.Pages;
 public sealed partial class SearchPage : Page
 {
     private readonly ObservableCollection<MusicResource> _items = new();
+    private readonly List<MusicResource> _loadedItems = new();
     private readonly List<Uri> _nextPages = new();
     private MusicResource? _selected;
     private bool _loading;
     private bool _showingChart;
+    private bool _updatingGenreOptions;
+    private string? _selectedGenre;
     private bool _resolvingPlayback;
     private bool _addingToLibrary;
     private bool _addingToFavorites;
@@ -46,6 +49,23 @@ public sealed partial class SearchPage : Page
     private async void OnBrowseChartClicked(object sender, RoutedEventArgs e) => await LoadChartAsync();
 
     private async void OnLoadMoreClicked(object sender, RoutedEventArgs e) => await LoadMoreAsync();
+
+    private void OnGenreChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingGenreOptions)
+        {
+            return;
+        }
+
+        var selectedGenre = (GenreFilterBox.SelectedItem as ComboBoxItem)?.Tag as string;
+        _selectedGenre = string.IsNullOrWhiteSpace(selectedGenre) ? null : selectedGenre;
+        ResultsList.SelectedItems.Clear();
+        _selected = null;
+        ActionStatus.Text = "";
+        RefreshVisibleItems();
+        UpdateResultStatus();
+        UpdateActions();
+    }
 
     private async void OnQueryTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
@@ -140,6 +160,8 @@ public sealed partial class SearchPage : Page
         _loading = true;
         _showingChart = false;
         _nextPages.Clear();
+        _loadedItems.Clear();
+        UpdateGenreFilterOptions();
         SetBusy(true);
         _items.Clear();
         _selected = null;
@@ -148,13 +170,11 @@ public sealed partial class SearchPage : Page
         try
         {
             var page = await App.MusicApi.SearchCatalogPageAsync(term);
-            foreach (var result in page.Items)
-            {
-                _items.Add(result);
-            }
-
+            _loadedItems.AddRange(page.Items);
+            UpdateGenreFilterOptions();
+            RefreshVisibleItems();
             _nextPages.AddRange(page.NextPages);
-            StatusText.Text = page.Items.Count == 0 ? "No results found." : $"{_items.Count} results";
+            UpdateResultStatus();
         }
         catch (Exception exception)
         {
@@ -180,6 +200,8 @@ public sealed partial class SearchPage : Page
         _loading = true;
         _showingChart = true;
         _nextPages.Clear();
+        _loadedItems.Clear();
+        UpdateGenreFilterOptions();
         SetBusy(true);
         _items.Clear();
         _selected = null;
@@ -189,13 +211,11 @@ public sealed partial class SearchPage : Page
         try
         {
             var page = await App.MusicApi.GetCatalogChartsPageAsync(chartType);
-            foreach (var result in page.Items)
-            {
-                _items.Add(result);
-            }
-
+            _loadedItems.AddRange(page.Items);
+            UpdateGenreFilterOptions();
+            RefreshVisibleItems();
             _nextPages.AddRange(page.NextPages);
-            StatusText.Text = _items.Count == 0 ? $"No {_chartLabel.ToLowerInvariant()} were returned." : $"{_items.Count} {_chartLabel.ToLowerInvariant()}";
+            UpdateResultStatus();
         }
         catch (Exception exception)
         {
@@ -227,19 +247,17 @@ public sealed partial class SearchPage : Page
             }
 
             _nextPages.Clear();
+            var addedItems = new List<MusicResource>();
             foreach (var page in pages)
             {
-                foreach (var item in page.Items)
-                {
-                    _items.Add(item);
-                }
-
+                addedItems.AddRange(page.Items);
                 _nextPages.AddRange(page.NextPages);
             }
 
-            StatusText.Text = _showingChart
-                ? $"{_items.Count} {_chartLabel.ToLowerInvariant()}"
-                : $"{_items.Count} results";
+            _loadedItems.AddRange(addedItems);
+            UpdateGenreFilterOptions();
+            AddVisibleItems(addedItems);
+            UpdateResultStatus();
         }
         catch (Exception exception)
         {
@@ -258,9 +276,77 @@ public sealed partial class SearchPage : Page
         SearchButton.IsEnabled = !busy;
         ChartTypeBox.IsEnabled = !busy;
         BrowseChartButton.IsEnabled = !busy;
+        GenreFilterBox.IsEnabled = !busy && GenreFilterBox.Items.Count > 1;
         LoadMoreButton.IsEnabled = !busy && _nextPages.Count > 0;
         LoadMoreButton.Visibility = _nextPages.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         StatusText.Text = busy ? "Searching…" : StatusText.Text;
+    }
+
+    private void UpdateGenreFilterOptions()
+    {
+        var previousGenre = _selectedGenre;
+        var genres = _loadedItems
+            .SelectMany(static item => item.GenreNames)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static genre => genre, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+
+        _updatingGenreOptions = true;
+        GenreFilterBox.Items.Clear();
+        GenreFilterBox.Items.Add(new ComboBoxItem { Content = "All genres", Tag = "" });
+        foreach (var genre in genres)
+        {
+            GenreFilterBox.Items.Add(new ComboBoxItem { Content = genre, Tag = genre });
+        }
+
+        var previousGenreIndex = previousGenre is null
+            ? -1
+            : Array.FindIndex(
+                genres,
+                genre => string.Equals(genre, previousGenre, StringComparison.OrdinalIgnoreCase));
+        GenreFilterBox.SelectedIndex = previousGenreIndex + 1;
+        _selectedGenre = (GenreFilterBox.SelectedItem as ComboBoxItem)?.Tag as string;
+        if (string.IsNullOrEmpty(_selectedGenre))
+        {
+            _selectedGenre = null;
+        }
+
+        _updatingGenreOptions = false;
+    }
+
+    private void RefreshVisibleItems()
+    {
+        _items.Clear();
+        AddVisibleItems(_loadedItems);
+    }
+
+    private void AddVisibleItems(IEnumerable<MusicResource> items)
+    {
+        foreach (var item in items)
+        {
+            if (_selectedGenre is null ||
+                item.GenreNames.Contains(_selectedGenre, StringComparer.OrdinalIgnoreCase))
+            {
+                _items.Add(item);
+            }
+        }
+    }
+
+    private void UpdateResultStatus()
+    {
+        var genreSuffix = _selectedGenre is null ? "" : $" · {_selectedGenre}";
+        if (_showingChart)
+        {
+            StatusText.Text = _loadedItems.Count == 0
+                ? $"No {_chartLabel.ToLowerInvariant()} were returned."
+                : $"{_items.Count} {_chartLabel.ToLowerInvariant()}{genreSuffix}";
+        }
+        else
+        {
+            StatusText.Text = _loadedItems.Count == 0
+                ? "No results found."
+                : $"{_items.Count} results{genreSuffix}";
+        }
     }
 
     private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
