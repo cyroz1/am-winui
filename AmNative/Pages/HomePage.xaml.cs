@@ -13,6 +13,7 @@ public sealed partial class HomePage : Page
     private readonly List<Uri> _nextRecommendationPages = new();
     private MusicResource? _selected;
     private Uri? _nextRecentlyPlayedPage;
+    private string _recentlyPlayedType = "tracks";
     private Uri? _nextHeavyRotationPage;
     private bool _loaded;
     private bool _loading;
@@ -59,6 +60,21 @@ public sealed partial class HomePage : Page
 
     private async void OnLoadMoreRecentlyPlayedClicked(object sender, RoutedEventArgs e) => await LoadMoreRecentlyPlayedAsync();
 
+    private async void OnRecentlyPlayedTypeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (RecentlyPlayedTypeBox.SelectedItem is not ComboBoxItem { Tag: string resourceType } ||
+            string.Equals(_recentlyPlayedType, resourceType, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _recentlyPlayedType = resourceType;
+        if (_loaded && IsLoaded)
+        {
+            await ReloadRecentlyPlayedAsync();
+        }
+    }
+
     private async void OnLoadMoreHeavyRotationClicked(object sender, RoutedEventArgs e) => await LoadMoreHeavyRotationAsync();
 
     private async Task LoadAsync(bool refresh = false)
@@ -97,7 +113,7 @@ public sealed partial class HomePage : Page
         try
         {
             var recommendationsTask = App.MusicApi.GetRecommendationsPageAsync();
-            var recentlyPlayedTask = App.MusicApi.GetRecentlyPlayedTracksPageAsync();
+            var recentlyPlayedTask = GetRecentlyPlayedPageAsync();
             var heavyRotationTask = App.MusicApi.GetHeavyRotationPageAsync();
 
             await Task.WhenAll(
@@ -141,7 +157,7 @@ public sealed partial class HomePage : Page
             }
             else if (_recommendations.Count == 0 && _recentlyPlayed.Count == 0 && _heavyRotation.Count == 0 && App.Credentials.HasAnyCredential)
             {
-                StatusText.Text = "Apple Music returned no recommendations, recently played tracks, or heavy rotation items.";
+                StatusText.Text = $"Apple Music returned no recommendations, recently played {GetRecentlyPlayedTypeLabel(_recentlyPlayedType).ToLowerInvariant()}, or heavy rotation items.";
             }
             else if (_recommendations.Count > 0 || _recentlyPlayed.Count > 0 || _heavyRotation.Count > 0)
             {
@@ -280,7 +296,7 @@ public sealed partial class HomePage : Page
             }
 
             _nextRecentlyPlayedPage = page.NextPages.FirstOrDefault();
-            StatusText.Text = $"{_recentlyPlayed.Count} recently played tracks";
+            StatusText.Text = $"{_recentlyPlayed.Count} recently played {GetRecentlyPlayedTypeLabel(_recentlyPlayedType).ToLowerInvariant()}";
         }
         catch (Exception exception)
         {
@@ -301,8 +317,70 @@ public sealed partial class HomePage : Page
             ? Visibility.Collapsed
             : Visibility.Visible;
         LoadMoreRecentlyPlayedButton.IsEnabled = !_loading && !_loadingMoreRecommendations && !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation && _nextRecentlyPlayedPage is not null;
+        RecentlyPlayedTypeBox.IsEnabled = !_loading && !_loadingMoreRecommendations && !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation;
         RefreshButton.IsEnabled = !_loading && !_loadingMoreRecommendations && !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation;
     }
+
+    private async Task ReloadRecentlyPlayedAsync()
+    {
+        if (_loading || _loadingMoreRecommendations || _loadingMoreRecentlyPlayed || _loadingMoreHeavyRotation)
+        {
+            return;
+        }
+
+        _recentlyPlayed.Clear();
+        _nextRecentlyPlayedPage = null;
+        RecentlyPlayedList.SelectedItems.Clear();
+        _selected = RecommendationsList.SelectedItems.OfType<MusicResource>().LastOrDefault()
+            ?? HeavyRotationList.SelectedItems.OfType<MusicResource>().LastOrDefault();
+        ActionStatus.Text = "";
+        UpdateActions();
+        _loadingMoreRecentlyPlayed = true;
+        RecentlyPlayedList.IsEnabled = false;
+        UpdateRecentlyPlayedLoadMoreButton();
+        StatusText.Text = $"Loading recently played {GetRecentlyPlayedTypeLabel(_recentlyPlayedType).ToLowerInvariant()}…";
+        try
+        {
+            var page = await GetRecentlyPlayedPageAsync();
+            foreach (var item in page.Items)
+            {
+                if (!_recentlyPlayed.Any(existing => existing.Id == item.Id && existing.Type == item.Type))
+                {
+                    _recentlyPlayed.Add(item);
+                }
+            }
+
+            _nextRecentlyPlayedPage = page.NextPages.FirstOrDefault();
+            StatusText.Text = $"{_recentlyPlayed.Count} recently played {GetRecentlyPlayedTypeLabel(_recentlyPlayedType).ToLowerInvariant()}";
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = exception.Message;
+        }
+        finally
+        {
+            _loadingMoreRecentlyPlayed = false;
+            RecentlyPlayedList.IsEnabled = true;
+            UpdateActions();
+            UpdateRecommendationsLoadMoreButton();
+            UpdateRecentlyPlayedLoadMoreButton();
+            UpdateHeavyRotationLoadMoreButton();
+        }
+    }
+
+    private Task<MusicResourcePage> GetRecentlyPlayedPageAsync() => _recentlyPlayedType == "tracks"
+        ? App.MusicApi.GetRecentlyPlayedTracksPageAsync()
+        : App.MusicApi.GetRecentlyPlayedResourcesPageAsync(_recentlyPlayedType);
+
+    private static string GetRecentlyPlayedTypeLabel(string resourceType) => resourceType switch
+    {
+        "tracks" => "Tracks",
+        "albums" => "Albums",
+        "artists" => "Artists",
+        "playlists" => "Playlists",
+        "stations" => "Stations",
+        _ => "Items"
+    };
 
     private async Task LoadMoreHeavyRotationAsync()
     {

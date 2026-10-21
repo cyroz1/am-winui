@@ -31,11 +31,25 @@
                         SelectionMode="Extended" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Spacing="8">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                         <TextBlock Text="Recently played" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <ComboBox
+                            x:Name="RecentlyPlayedTypeBox"
+                            Grid.Column="1"
+                            MinWidth="120"
+                            SelectedIndex="0"
+                            AutomationProperties.Name="Recently played type"
+                            ToolTipService.ToolTip="Choose the kind of recently played item"
+                            SelectionChanged="OnRecentlyPlayedTypeChanged">
+                            <ComboBoxItem Content="Tracks" Tag="tracks" />
+                            <ComboBoxItem Content="Albums" Tag="albums" />
+                            <ComboBoxItem Content="Artists" Tag="artists" />
+                            <ComboBoxItem Content="Playlists" Tag="playlists" />
+                            <ComboBoxItem Content="Stations" Tag="stations" />
+                        </ComboBox>
                         <Button
                             x:Name="LoadMoreRecentlyPlayedButton"
-                            Grid.Column="1"
+                            Grid.Column="2"
                             Content="Load more"
                             Visibility="Collapsed"
                             Click="OnLoadMoreRecentlyPlayedClicked" />

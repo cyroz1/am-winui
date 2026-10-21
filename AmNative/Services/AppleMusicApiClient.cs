@@ -282,6 +282,22 @@ public sealed class AppleMusicApiClient
             new Uri(ApiRoot, "me/recent/played/tracks?types=songs,library-songs,music-videos,library-music-videos&limit=30"),
             cancellationToken);
 
+    public Task<MusicResourcePage> GetRecentlyPlayedResourcesPageAsync(
+        string resourceType,
+        CancellationToken cancellationToken = default)
+    {
+        var endpoint = resourceType switch
+        {
+            "albums" => "me/recent/played?types=albums,library-albums&limit=10",
+            "artists" => "me/recent/played?types=artists&limit=10",
+            "playlists" => "me/recent/played?types=playlists,library-playlists&limit=10",
+            "stations" => "me/recent/played?types=stations&limit=10",
+            _ => throw new ArgumentOutOfRangeException(nameof(resourceType), "Recently played resources are available here for tracks, albums, artists, playlists, and stations.")
+        };
+
+        return GetApiResourcePageAsync(new Uri(ApiRoot, endpoint), cancellationToken);
+    }
+
     public Task<MusicResourcePage> GetHeavyRotationPageAsync(CancellationToken cancellationToken = default) =>
         GetApiResourcePageAsync(new Uri(ApiRoot, "me/history/heavy-rotation"), cancellationToken);
 
