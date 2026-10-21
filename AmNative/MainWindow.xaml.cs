@@ -18,6 +18,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         App.Player.Attach(PlaybackElement);
         App.Player.TrackChanged += OnTrackChanged;
+        App.Player.PlaybackStateChanged += OnPlayerPlaybackStateChanged;
         VolumeSlider.Value = App.Player.Volume;
         UpdateMuteButton();
 
@@ -65,6 +66,8 @@ public sealed partial class MainWindow : Window
         UpdatePlaybackActions();
         UpdatePlaybackTimeline();
     }
+
+    private void OnPlayerPlaybackStateChanged(object? sender, EventArgs args) => UpdatePlaybackActions();
 
     private void OnTimelineValueChanged(object sender, RangeBaseValueChangedEventArgs args)
     {
@@ -151,6 +154,8 @@ public sealed partial class MainWindow : Window
 
     private void OnPreviousTrackClicked(object sender, RoutedEventArgs e) => App.Player.SkipPrevious();
 
+    private void OnPlayPauseClicked(object sender, RoutedEventArgs e) => App.Player.TogglePlayback();
+
     private void OnNextTrackClicked(object sender, RoutedEventArgs e) => App.Player.SkipNext();
 
     private void OnShuffleClicked(object sender, RoutedEventArgs e)
@@ -211,6 +216,8 @@ public sealed partial class MainWindow : Window
     private void UpdatePlaybackActions()
     {
         PreviousTrackButton.IsEnabled = App.Player.CanSkipPrevious;
+        PlayPauseButton.Content = App.Player.IsPlaying ? "Pause" : "Play";
+        PlayPauseButton.IsEnabled = App.Player.Queue.Count > 0;
         NextTrackButton.IsEnabled = App.Player.CanSkipNext;
         ShuffleButton.IsEnabled = App.Player.CanShuffle;
         ShuffleButton.IsChecked = App.Player.IsShuffleEnabled;

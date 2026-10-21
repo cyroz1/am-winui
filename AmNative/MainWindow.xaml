@@ -34,7 +34,7 @@
         </NavigationView>
 
         <Border Grid.Row="1" Padding="16,10" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto" VerticalAlignment="Center" ColumnSpacing="8">
+            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto" VerticalAlignment="Center" ColumnSpacing="8">
                 <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2" VerticalAlignment="Center">
                     <TextBlock x:Name="NowPlayingTitle" Text="Nothing playing" FontWeight="SemiBold" />
                     <TextBlock x:Name="NowPlayingArtist" Text="Apple Music preview player" Opacity="0.68" FontSize="12" />
@@ -44,16 +44,28 @@
                     x:Name="PlaybackElement"
                     Grid.Row="0"
                     Grid.Column="2"
-                    Width="300"
-                    Height="58"
-                    AreTransportControlsEnabled="True"
+                    Width="1"
+                    Height="1"
+                    AreTransportControlsEnabled="False"
                     AutoPlay="False"
-                    Stretch="Uniform" />
-                <Button x:Name="NextTrackButton" Grid.Row="0" Grid.Column="3" Content="Next" IsEnabled="False" Click="OnNextTrackClicked" />
-                <ToggleButton x:Name="ShuffleButton" Grid.Row="0" Grid.Column="4" Content="Shuffle" IsEnabled="False" Click="OnShuffleClicked" />
-                <ToggleButton x:Name="RepeatButton" Grid.Row="0" Grid.Column="5" Content="Repeat" IsEnabled="False" Click="OnRepeatClicked" />
-                <Button x:Name="QueueButton" Grid.Row="0" Grid.Column="6" Content="Queue" IsEnabled="False" Click="OnQueueClicked" />
-                <Grid Grid.Row="1" Grid.ColumnSpan="7" ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8" Margin="0,4,0,0" VerticalAlignment="Center">
+                    Stretch="Uniform"
+                    Opacity="0"
+                    IsHitTestVisible="False"
+                    IsTabStop="False"
+                    AutomationProperties.AccessibilityView="Raw" />
+                <Button
+                    x:Name="PlayPauseButton"
+                    Grid.Row="0"
+                    Grid.Column="3"
+                    Content="Play"
+                    IsEnabled="False"
+                    Click="OnPlayPauseClicked"
+                    AutomationProperties.Name="Play or pause preview playback" />
+                <Button x:Name="NextTrackButton" Grid.Row="0" Grid.Column="4" Content="Next" IsEnabled="False" Click="OnNextTrackClicked" />
+                <ToggleButton x:Name="ShuffleButton" Grid.Row="0" Grid.Column="5" Content="Shuffle" IsEnabled="False" Click="OnShuffleClicked" />
+                <ToggleButton x:Name="RepeatButton" Grid.Row="0" Grid.Column="6" Content="Repeat" IsEnabled="False" Click="OnRepeatClicked" />
+                <Button x:Name="QueueButton" Grid.Row="0" Grid.Column="7" Content="Queue" IsEnabled="False" Click="OnQueueClicked" />
+                <Grid Grid.Row="1" Grid.ColumnSpan="8" ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8" Margin="0,4,0,0" VerticalAlignment="Center">
                     <TextBlock x:Name="CurrentTimeText" Text="0:00" FontSize="12" Opacity="0.68" VerticalAlignment="Center" />
                     <Slider
                         x:Name="PlaybackTimeline"

@@ -29,6 +29,7 @@ public sealed class PreviewPlayer
     public bool CanRepeat => _queue.Count > 0;
     public bool IsShuffleEnabled => _shuffleEnabled;
     public bool IsRepeatEnabled => _repeatEnabled;
+    public bool IsPlaying => MediaPlayer.PlaybackSession.PlaybackState == MediaPlaybackState.Playing;
     public IReadOnlyList<MusicResource> Queue => _queue;
     public int CurrentQueueIndex => _currentQueueIndex;
     public TimeSpan CurrentPosition => MediaPlayer.PlaybackSession.Position;
@@ -37,6 +38,7 @@ public sealed class PreviewPlayer
     public bool IsMuted => Volume <= 0;
 
     public event EventHandler<TrackChangedEventArgs>? TrackChanged;
+    public event EventHandler? PlaybackStateChanged;
 
     public void Attach(MediaPlayerElement element)
     {
@@ -137,6 +139,23 @@ public sealed class PreviewPlayer
         if (CanSkipNext)
         {
             _playbackList?.MoveNext();
+        }
+    }
+
+    public void TogglePlayback()
+    {
+        if (_queue.Count == 0)
+        {
+            return;
+        }
+
+        if (IsPlaying)
+        {
+            MediaPlayer.Pause();
+        }
+        else
+        {
+            MediaPlayer.Play();
         }
     }
 
@@ -290,6 +309,7 @@ public sealed class PreviewPlayer
                 MediaPlaybackState.Opening or MediaPlaybackState.Buffering => MediaPlaybackStatus.Changing,
                 _ => MediaPlaybackStatus.Stopped
             };
+            PlaybackStateChanged?.Invoke(this, EventArgs.Empty);
         });
     }
 }
