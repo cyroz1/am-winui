@@ -90,6 +90,39 @@ public sealed class AppleMusicApiClient
         return resources;
     }
 
+    public async Task<IReadOnlyList<string>> GetCatalogSearchHintsAsync(string term, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(term))
+        {
+            return Array.Empty<string>();
+        }
+
+        var storefront = await ResolveStorefrontAsync(cancellationToken);
+        var query = $"catalog/{storefront}/search/hints?term={Uri.EscapeDataString(term.Trim())}&limit=6";
+        using var request = CreateRequest(HttpMethod.Get, query);
+        using var response = await SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        if (!document.RootElement.TryGetProperty("results", out var results) ||
+            results.ValueKind != JsonValueKind.Object ||
+            !results.TryGetProperty("terms", out var terms) ||
+            terms.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<string>();
+        }
+
+        return terms.EnumerateArray()
+            .Where(static value => value.ValueKind == JsonValueKind.String)
+            .Select(static value => value.GetString()?.Trim())
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Select(static value => value!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
     public async Task<MusicResourcePage> SearchCatalogPageAsync(string term, CancellationToken cancellationToken = default)
     {
         var storefront = await ResolveStorefrontAsync(cancellationToken);

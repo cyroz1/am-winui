@@ -8,7 +8,12 @@
             <TextBlock Text="Find songs, albums, artists, playlists, and music videos. Select multiple results to add catalog items to your library or favorites, or choose tracks and videos for a playlist." Opacity="0.68" />
         </StackPanel>
         <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="10">
-            <TextBox x:Name="QueryBox" PlaceholderText="Search the catalog" KeyDown="OnQueryKeyDown" />
+            <AutoSuggestBox
+                x:Name="QueryBox"
+                PlaceholderText="Search the catalog"
+                TextChanged="OnQueryTextChanged"
+                SuggestionChosen="OnSuggestionChosen"
+                QuerySubmitted="OnQuerySubmitted" />
             <Button x:Name="SearchButton" Grid.Column="1" Content="Search" Click="OnSearchClicked" />
         </Grid>
         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="10">

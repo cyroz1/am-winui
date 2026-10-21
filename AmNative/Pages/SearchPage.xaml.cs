@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using AmNative.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
 
 namespace AmNative.Pages;
 
@@ -16,6 +15,7 @@ public sealed partial class SearchPage : Page
     private bool _resolvingPlayback;
     private bool _addingToLibrary;
     private bool _addingToFavorites;
+    private CancellationTokenSource? _searchHintsCts;
     private string _chartLabel = "Top songs";
     private IReadOnlyList<MusicResource> SelectedLibraryItems => ResultsList.SelectedItems
         .OfType<MusicResource>()
@@ -36,6 +36,7 @@ public sealed partial class SearchPage : Page
     {
         InitializeComponent();
         ResultsList.ItemsSource = _items;
+        Unloaded += (_, _) => _searchHintsCts?.Cancel();
     }
 
     private async void OnSearchClicked(object sender, RoutedEventArgs e) => await SearchAsync();
@@ -44,13 +45,79 @@ public sealed partial class SearchPage : Page
 
     private async void OnLoadMoreClicked(object sender, RoutedEventArgs e) => await LoadMoreAsync();
 
-    private async void OnQueryKeyDown(object sender, KeyRoutedEventArgs e)
+    private async void OnQueryTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
-        if (e.Key == Windows.System.VirtualKey.Enter)
+        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput || _loading)
         {
-            e.Handled = true;
-            await SearchAsync();
+            return;
         }
+
+        var term = sender.Text.Trim();
+        _searchHintsCts?.Cancel();
+        if (term.Length < 2)
+        {
+            sender.ItemsSource = Array.Empty<string>();
+            sender.IsSuggestionListOpen = false;
+            _searchHintsCts = null;
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        _searchHintsCts = cancellation;
+        try
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellation.Token);
+            var hints = await App.MusicApi.GetCatalogSearchHintsAsync(term, cancellation.Token);
+            if (cancellation.IsCancellationRequested ||
+                !ReferenceEquals(_searchHintsCts, cancellation) ||
+                !string.Equals(term, sender.Text.Trim(), StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            sender.ItemsSource = hints;
+            sender.IsSuggestionListOpen = hints.Count > 0;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch
+        {
+            if (ReferenceEquals(_searchHintsCts, cancellation))
+            {
+                sender.ItemsSource = Array.Empty<string>();
+                sender.IsSuggestionListOpen = false;
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(_searchHintsCts, cancellation))
+            {
+                _searchHintsCts = null;
+            }
+
+            cancellation.Dispose();
+        }
+    }
+
+    private void OnSuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
+    {
+        if (args.SelectedItem is string term)
+        {
+            sender.Text = term;
+        }
+
+        sender.IsSuggestionListOpen = false;
+    }
+
+    private async void OnQuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        if (args.ChosenSuggestion is string term)
+        {
+            sender.Text = term;
+        }
+
+        await SearchAsync();
     }
 
     private async Task SearchAsync()
@@ -66,6 +133,8 @@ public sealed partial class SearchPage : Page
             return;
         }
 
+        _searchHintsCts?.Cancel();
+        QueryBox.IsSuggestionListOpen = false;
         _loading = true;
         _showingChart = false;
         _nextPages.Clear();
