@@ -53,7 +53,7 @@
                 <ToggleButton x:Name="ShuffleButton" Grid.Row="0" Grid.Column="4" Content="Shuffle" IsEnabled="False" Click="OnShuffleClicked" />
                 <ToggleButton x:Name="RepeatButton" Grid.Row="0" Grid.Column="5" Content="Repeat" IsEnabled="False" Click="OnRepeatClicked" />
                 <Button x:Name="QueueButton" Grid.Row="0" Grid.Column="6" Content="Queue" IsEnabled="False" Click="OnQueueClicked" />
-                <Grid Grid.Row="1" Grid.ColumnSpan="7" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="0,4,0,0" VerticalAlignment="Center">
+                <Grid Grid.Row="1" Grid.ColumnSpan="7" ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8" Margin="0,4,0,0" VerticalAlignment="Center">
                     <TextBlock x:Name="CurrentTimeText" Text="0:00" FontSize="12" Opacity="0.68" VerticalAlignment="Center" />
                     <Slider
                         x:Name="PlaybackTimeline"
@@ -70,6 +70,22 @@
                         PointerCaptureLost="OnTimelinePointerCaptureLost"
                         KeyUp="OnTimelineKeyUp" />
                     <TextBlock x:Name="DurationText" Grid.Column="2" Text="0:00" FontSize="12" Opacity="0.68" VerticalAlignment="Center" />
+                    <Slider
+                        x:Name="VolumeSlider"
+                        Grid.Column="3"
+                        Width="120"
+                        Minimum="0"
+                        Maximum="1"
+                        Value="0.5"
+                        AutomationProperties.Name="Playback volume"
+                        ToolTipService.ToolTip="Volume"
+                        ValueChanged="OnVolumeValueChanged" />
+                    <Button
+                        x:Name="MuteButton"
+                        Grid.Column="4"
+                        Content="Mute"
+                        Click="OnMuteClicked"
+                        AutomationProperties.Name="Mute or restore playback volume" />
                 </Grid>
             </Grid>
         </Border>

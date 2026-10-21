@@ -18,6 +18,8 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         App.Player.Attach(PlaybackElement);
         App.Player.TrackChanged += OnTrackChanged;
+        VolumeSlider.Value = App.Player.Volume;
+        UpdateMuteButton();
 
         _playbackProgressTimer = PlaybackElement.DispatcherQueue.CreateTimer();
         _playbackProgressTimer.Interval = TimeSpan.FromMilliseconds(400);
@@ -104,6 +106,21 @@ public sealed partial class MainWindow : Window
     }
 
     private void SeekToTimelineValue() => App.Player.Seek(TimeSpan.FromSeconds(PlaybackTimeline.Value));
+
+    private void OnVolumeValueChanged(object sender, RangeBaseValueChangedEventArgs args)
+    {
+        App.Player.SetVolume(args.NewValue);
+        UpdateMuteButton();
+    }
+
+    private void OnMuteClicked(object sender, RoutedEventArgs e)
+    {
+        App.Player.ToggleMute();
+        VolumeSlider.Value = App.Player.Volume;
+        UpdateMuteButton();
+    }
+
+    private void UpdateMuteButton() => MuteButton.Content = App.Player.IsMuted ? "Unmute" : "Mute";
 
     private void UpdatePlaybackTimeline()
     {

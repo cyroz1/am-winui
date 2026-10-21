@@ -18,6 +18,7 @@ public sealed class PreviewPlayer
     private int _currentQueueIndex = -1;
     private bool _shuffleEnabled;
     private bool _repeatEnabled;
+    private double _lastNonZeroVolume = 0.5;
 
     public MediaPlayer MediaPlayer => _mediaPlayer ??= _element?.MediaPlayer ?? new MediaPlayer();
     public bool CanSkipPrevious => _queue.Count > 1 &&
@@ -32,6 +33,8 @@ public sealed class PreviewPlayer
     public int CurrentQueueIndex => _currentQueueIndex;
     public TimeSpan CurrentPosition => MediaPlayer.PlaybackSession.Position;
     public TimeSpan CurrentDuration => MediaPlayer.PlaybackSession.NaturalDuration;
+    public double Volume => MediaPlayer.Volume;
+    public bool IsMuted => Volume <= 0;
 
     public event EventHandler<TrackChangedEventArgs>? TrackChanged;
 
@@ -148,6 +151,28 @@ public sealed class PreviewPlayer
 
         var clampedTicks = Math.Clamp(position.Ticks, 0, duration.Ticks);
         session.Position = TimeSpan.FromTicks(clampedTicks);
+    }
+
+    public void SetVolume(double volume)
+    {
+        var clampedVolume = Math.Clamp(volume, 0, 1);
+        MediaPlayer.Volume = clampedVolume;
+        if (clampedVolume > 0)
+        {
+            _lastNonZeroVolume = clampedVolume;
+        }
+    }
+
+    public void ToggleMute()
+    {
+        if (IsMuted)
+        {
+            SetVolume(_lastNonZeroVolume);
+            return;
+        }
+
+        _lastNonZeroVolume = Volume;
+        MediaPlayer.Volume = 0;
     }
 
     public void ToggleShuffle()
