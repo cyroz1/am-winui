@@ -187,15 +187,21 @@ public sealed partial class MainWindow : Window
             MaxHeight = 520,
             MinWidth = 520
         };
+        var moveUpButton = new Button { Content = "Move up" };
+        var moveDownButton = new Button { Content = "Move down" };
         var clearQueueButton = new Button
         {
             Content = "Clear queue",
             HorizontalAlignment = HorizontalAlignment.Right
         };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(clearQueueButton, "Clear playback queue and stop preview playback");
+        var queueActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        queueActions.Children.Add(moveUpButton);
+        queueActions.Children.Add(moveDownButton);
+        queueActions.Children.Add(clearQueueButton);
         var content = new StackPanel { Spacing = 12 };
         content.Children.Add(list);
-        content.Children.Add(clearQueueButton);
+        content.Children.Add(queueActions);
 
         var dialog = new ContentDialog
         {
@@ -207,6 +213,13 @@ public sealed partial class MainWindow : Window
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = PlaybackElement.XamlRoot
         };
+
+        void UpdateQueueActionStates()
+        {
+            var selectedIndex = list.SelectedIndex;
+            moveUpButton.IsEnabled = App.Player.CanMoveQueueItem(selectedIndex, selectedIndex - 1);
+            moveDownButton.IsEnabled = App.Player.CanMoveQueueItem(selectedIndex, selectedIndex + 1);
+        }
 
         void RefreshQueueRows(int preferredSelection = -1)
         {
@@ -220,11 +233,13 @@ public sealed partial class MainWindow : Window
                 : Math.Clamp(previousSelection < 0 ? App.Player.CurrentQueueIndex : previousSelection, 0, queue.Count - 1);
             dialog.IsPrimaryButtonEnabled = queue.Count > 0;
             dialog.IsSecondaryButtonEnabled = queue.Count > 0;
+            UpdateQueueActionStates();
         }
 
         void OnQueueChanged(object? queueSender, EventArgs queueArgs) => RefreshQueueRows();
 
         RefreshQueueRows(App.Player.CurrentQueueIndex);
+        list.SelectionChanged += (_, _) => UpdateQueueActionStates();
         dialog.PrimaryButtonClick += (sender, args) =>
         {
             var queue = App.Player.Queue;
@@ -248,6 +263,18 @@ public sealed partial class MainWindow : Window
             var selectedIndex = list.SelectedIndex;
             App.Player.RemoveQueueItem(selectedIndex);
             RefreshQueueRows(selectedIndex);
+        };
+        moveUpButton.Click += (_, _) =>
+        {
+            var index = list.SelectedIndex;
+            App.Player.MoveQueueItem(index, index - 1);
+            RefreshQueueRows(index - 1);
+        };
+        moveDownButton.Click += (_, _) =>
+        {
+            var index = list.SelectedIndex;
+            App.Player.MoveQueueItem(index, index + 1);
+            RefreshQueueRows(index + 1);
         };
         clearQueueButton.Click += (_, _) =>
         {

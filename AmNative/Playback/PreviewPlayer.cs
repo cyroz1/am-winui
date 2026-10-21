@@ -37,6 +37,15 @@ public sealed class PreviewPlayer
     public double Volume => MediaPlayer.Volume;
     public bool IsMuted => Volume <= 0;
 
+    public bool CanMoveQueueItem(int index, int destinationIndex) =>
+        _playbackList is not null &&
+        !_shuffleEnabled &&
+        index > _currentQueueIndex &&
+        destinationIndex > _currentQueueIndex &&
+        index < _queue.Count &&
+        destinationIndex < _queue.Count &&
+        index != destinationIndex;
+
     public event EventHandler<TrackChangedEventArgs>? TrackChanged;
     public event EventHandler? PlaybackStateChanged;
     public event EventHandler? QueueChanged;
@@ -168,6 +177,25 @@ public sealed class PreviewPlayer
         }
 
         UpdateTransportNavigation();
+        QueueChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void MoveQueueItem(int index, int destinationIndex)
+    {
+        if (!CanMoveQueueItem(index, destinationIndex) || _playbackList is null)
+        {
+            return;
+        }
+
+        var playbackItem = _playbackList.Items[index];
+        _playbackList.Items.RemoveAt(index);
+        _playbackList.Items.Insert(destinationIndex, playbackItem);
+
+        var queue = _queue.ToList();
+        var item = queue[index];
+        queue.RemoveAt(index);
+        queue.Insert(destinationIndex, item);
+        _queue = queue.ToArray();
         QueueChanged?.Invoke(this, EventArgs.Empty);
     }
 
