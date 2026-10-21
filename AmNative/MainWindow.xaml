@@ -70,6 +70,13 @@
                         <TextBlock x:Name="NowPlayingTitle" Text="Nothing playing" FontWeight="SemiBold" />
                         <TextBlock x:Name="NowPlayingArtist" Text="Apple Music preview player" Opacity="0.68" FontSize="12" />
                         <TextBlock
+                            x:Name="PlaybackRestoreText"
+                            Text="Previous preview queue restored. Press Play to resume."
+                            FontSize="11"
+                            Opacity="0.72"
+                            TextTrimming="CharacterEllipsis"
+                            Visibility="Collapsed" />
+                        <TextBlock
                             x:Name="PlaybackErrorText"
                             FontSize="11"
                             TextTrimming="CharacterEllipsis"

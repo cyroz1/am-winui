@@ -1,5 +1,6 @@
 using AmNative.Pages;
 using AmNative.Playback;
+using AmNative.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -13,8 +14,10 @@ namespace AmNative;
 public sealed partial class MainWindow : Window
 {
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _playbackProgressTimer;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _playbackQueueSaveTimer;
     private bool _isScrubbing;
     private bool _playbackTimerRunning;
+    private bool _restoringPlaybackState;
 
     public MainWindow()
     {
@@ -25,14 +28,32 @@ public sealed partial class MainWindow : Window
         App.Player.PlaybackFailed += OnPlaybackFailed;
         App.Player.QueueChanged += OnQueueChanged;
         App.Player.PlaybackStateChanged += OnPlayerPlaybackStateChanged;
-        VolumeSlider.Value = App.Player.Volume;
-        UpdateMuteButton();
 
         _playbackProgressTimer = PlaybackElement.DispatcherQueue.CreateTimer();
         _playbackProgressTimer.Interval = TimeSpan.FromMilliseconds(500);
         _playbackProgressTimer.IsRepeating = true;
         _playbackProgressTimer.Tick += (_, _) => UpdatePlaybackTimeline();
-        Closed += (_, _) => _playbackProgressTimer.Stop();
+
+        _playbackQueueSaveTimer = PlaybackElement.DispatcherQueue.CreateTimer();
+        _playbackQueueSaveTimer.Interval = TimeSpan.FromMilliseconds(750);
+        _playbackQueueSaveTimer.IsRepeating = false;
+        _playbackQueueSaveTimer.Tick += (_, _) =>
+        {
+            _playbackQueueSaveTimer.Stop();
+            SavePlaybackQueue();
+        };
+
+        Closed += (_, _) =>
+        {
+            _playbackProgressTimer.Stop();
+            _playbackQueueSaveTimer.Stop();
+            SavePlaybackQueue();
+        };
+
+        RestorePlaybackQueue();
+        VolumeSlider.Value = App.Player.Volume;
+        UpdateMuteButton();
+        UpdatePlaybackTimeline();
 
         RootNavigation.SelectedItem = RootNavigation.MenuItems[0];
         if (ContentFrame.CurrentSourcePageType != typeof(HomePage))
@@ -99,6 +120,12 @@ public sealed partial class MainWindow : Window
 
     private void OnTrackChanged(object? sender, TrackChangedEventArgs args)
     {
+        if (!_restoringPlaybackState)
+        {
+            PlaybackRestoreText.Visibility = Visibility.Collapsed;
+            SchedulePlaybackQueueSave();
+        }
+
         PlaybackErrorText.Text = "";
         PlaybackErrorText.Visibility = Visibility.Collapsed;
         NowPlayingTitle.Text = args.Title;
@@ -134,7 +161,11 @@ public sealed partial class MainWindow : Window
         UpdatePlaybackTimerState();
     }
 
-    private void OnQueueChanged(object? sender, EventArgs args) => UpdatePlaybackActions();
+    private void OnQueueChanged(object? sender, EventArgs args)
+    {
+        UpdatePlaybackActions();
+        SchedulePlaybackQueueSave();
+    }
 
     private void OnTimelineValueChanged(object sender, RangeBaseValueChangedEventArgs args)
     {
@@ -181,6 +212,7 @@ public sealed partial class MainWindow : Window
     {
         App.Player.SetVolume(args.NewValue);
         UpdateMuteButton();
+        SchedulePlaybackQueueSave();
     }
 
     private void OnMuteClicked(object sender, RoutedEventArgs e)
@@ -188,6 +220,7 @@ public sealed partial class MainWindow : Window
         App.Player.ToggleMute();
         VolumeSlider.Value = App.Player.Volume;
         UpdateMuteButton();
+        SchedulePlaybackQueueSave();
     }
 
     private void UpdateMuteButton() => MuteButton.Content = App.Player.IsMuted ? "Unmute" : "Mute";
@@ -221,7 +254,11 @@ public sealed partial class MainWindow : Window
 
     private void OnPreviousTrackClicked(object sender, RoutedEventArgs e) => App.Player.SkipPrevious();
 
-    private void OnPlayPauseClicked(object sender, RoutedEventArgs e) => App.Player.TogglePlayback();
+    private void OnPlayPauseClicked(object sender, RoutedEventArgs e)
+    {
+        App.Player.TogglePlayback();
+        PlaybackRestoreText.Visibility = Visibility.Collapsed;
+    }
 
     private void OnNextTrackClicked(object sender, RoutedEventArgs e) => App.Player.SkipNext();
 
@@ -229,12 +266,72 @@ public sealed partial class MainWindow : Window
     {
         App.Player.ToggleShuffle();
         UpdatePlaybackActions();
+        SchedulePlaybackQueueSave();
     }
 
     private void OnRepeatClicked(object sender, RoutedEventArgs e)
     {
         App.Player.ToggleRepeat();
         UpdatePlaybackActions();
+        SchedulePlaybackQueueSave();
+    }
+
+    private void RestorePlaybackQueue()
+    {
+        var snapshot = PlaybackQueueStore.Load();
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        _restoringPlaybackState = true;
+        try
+        {
+            App.Player.RestoreQueue(
+                snapshot.Items.Select(static item => item.ToResource()),
+                snapshot.CurrentIndex,
+                snapshot.ShuffleEnabled,
+                snapshot.RepeatEnabled,
+                snapshot.Volume);
+            if (App.Player.Queue.Count > 0)
+            {
+                PlaybackRestoreText.Visibility = Visibility.Visible;
+            }
+        }
+        finally
+        {
+            _restoringPlaybackState = false;
+        }
+    }
+
+    private void SchedulePlaybackQueueSave()
+    {
+        if (_restoringPlaybackState)
+        {
+            return;
+        }
+
+        _playbackQueueSaveTimer.Stop();
+        _playbackQueueSaveTimer.Start();
+    }
+
+    private void SavePlaybackQueue()
+    {
+        try
+        {
+            PlaybackQueueStore.Save(new PlaybackQueueSnapshot
+            {
+                Items = App.Player.Queue.Select(PlaybackQueueItem.FromResource).ToArray(),
+                CurrentIndex = App.Player.CurrentQueueIndex,
+                ShuffleEnabled = App.Player.IsShuffleEnabled,
+                RepeatEnabled = App.Player.IsRepeatEnabled,
+                Volume = App.Player.Volume
+            });
+        }
+        catch
+        {
+            // Playback must remain available when local state storage is unavailable.
+        }
     }
 
     private async void OnQueueClicked(object sender, RoutedEventArgs e)

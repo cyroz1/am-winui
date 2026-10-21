@@ -88,6 +88,33 @@ public sealed class PreviewPlayer
             startIndex = 0;
         }
 
+        SetQueue(queue, startIndex, autoplay: true);
+        return Task.CompletedTask;
+    }
+
+    public void RestoreQueue(
+        IEnumerable<MusicResource> items,
+        int startIndex,
+        bool shuffleEnabled,
+        bool repeatEnabled,
+        double volume)
+    {
+        var queue = items
+            .Where(static item => TryGetPreviewUri(item, out _))
+            .ToArray();
+        _shuffleEnabled = shuffleEnabled;
+        _repeatEnabled = repeatEnabled;
+        SetVolume(double.IsFinite(volume) ? volume : 0.5);
+        if (queue.Length == 0)
+        {
+            return;
+        }
+
+        SetQueue(queue, Math.Clamp(startIndex, 0, queue.Length - 1), autoplay: false);
+    }
+
+    private void SetQueue(IReadOnlyList<MusicResource> queue, int startIndex, bool autoplay)
+    {
         var playbackList = new MediaPlaybackList();
         playbackList.ShuffleEnabled = _shuffleEnabled;
         playbackList.AutoRepeatEnabled = _repeatEnabled;
@@ -118,9 +145,12 @@ public sealed class PreviewPlayer
 
         UpdateTransportNavigation();
 
-        MediaPlayer.Play();
+        if (autoplay)
+        {
+            MediaPlayer.Play();
+        }
+
         TrackChanged?.Invoke(this, new TrackChangedEventArgs(queue[startIndex]));
-        return Task.CompletedTask;
     }
 
     public Task EnqueuePreviewsAsync(IEnumerable<MusicResource> items)
