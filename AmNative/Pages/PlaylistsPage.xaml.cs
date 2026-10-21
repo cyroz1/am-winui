@@ -14,7 +14,7 @@ public sealed partial class PlaylistsPage : Page
     private readonly List<MusicResource> _folderStack = new();
     private MusicResource? _selectedPlaylist;
     private MusicResource? _selectedTrack;
-    private MusicResource? _pendingSong;
+    private IReadOnlyList<MusicResource> _pendingItems = Array.Empty<MusicResource>();
     private Uri? _nextTrackPage;
     private bool _loading;
     private bool _loadingTracks;
@@ -33,7 +33,12 @@ public sealed partial class PlaylistsPage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        _pendingSong = e.Parameter as MusicResource;
+        _pendingItems = e.Parameter switch
+        {
+            MusicResource item when item.CanBeAddedToPlaylist => new[] { item },
+            IEnumerable<MusicResource> items => items.Where(static item => item.CanBeAddedToPlaylist).ToArray(),
+            _ => Array.Empty<MusicResource>()
+        };
         UpdateSelection();
     }
 
@@ -271,7 +276,7 @@ public sealed partial class PlaylistsPage : Page
 
     private async void OnAddSongClicked(object sender, RoutedEventArgs e)
     {
-        if (_pendingSong is null || _selectedPlaylist is null || !_selectedPlaylist.CanEdit ||
+        if (_pendingItems.Count == 0 || _selectedPlaylist is null || !_selectedPlaylist.CanEdit ||
             _loading || _loadingTracks || _mutating)
         {
             return;
@@ -282,10 +287,12 @@ public sealed partial class PlaylistsPage : Page
         try
         {
             var selectedPlaylist = _selectedPlaylist;
-            var pendingSong = _pendingSong;
-            await App.MusicApi.AddTracksToPlaylistAsync(selectedPlaylist.Id, new[] { pendingSong });
+            var pendingItems = _pendingItems;
+            await App.MusicApi.AddTracksToPlaylistAsync(selectedPlaylist.Id, pendingItems);
             await OnReloadTracksAsync();
-            StatusText.Text = $"Added “{pendingSong.Name}” to “{selectedPlaylist.Name}”.";
+            StatusText.Text = pendingItems.Count == 1
+                ? $"Added “{pendingItems[0].Name}” to “{selectedPlaylist.Name}”."
+                : $"Added {pendingItems.Count} items to “{selectedPlaylist.Name}”.";
         }
         catch (Exception exception)
         {
@@ -349,9 +356,11 @@ public sealed partial class PlaylistsPage : Page
     {
         SelectedPlaylistText.Text = _selectedPlaylist is { CanEdit: false }
             ? $"“{_selectedPlaylist.Name}” is read-only and can’t be changed."
-            : _pendingSong is null
-                ? "Choose a track in Search or Library first."
-                : $"Selected track: {_pendingSong.Name}";
+            : _pendingItems.Count == 0
+                ? "Choose tracks or videos in Home, Search, Library, or item details first."
+                : _pendingItems.Count == 1
+                    ? $"Selected item: {_pendingItems[0].Name}"
+                    : $"{_pendingItems.Count} items selected";
         UpdateCommandState();
     }
 
@@ -365,11 +374,14 @@ public sealed partial class PlaylistsPage : Page
         TracksList.IsEnabled = !_loadingTracks && !_mutating;
         LoadMoreTracksButton.Visibility = _nextTrackPage is null ? Visibility.Collapsed : Visibility.Visible;
         LoadMoreTracksButton.IsEnabled = enabled && _nextTrackPage is not null;
-        AddSongButton.IsEnabled = enabled && _pendingSong is not null && _selectedPlaylist is not null &&
-                                  _selectedPlaylist.CanEdit && IsPlaylistTrack(_pendingSong);
+        AddSongButton.Content = _pendingItems.Count switch
+        {
+            1 => "Add selected item",
+            > 1 => $"Add {_pendingItems.Count} selected items",
+            _ => "Add selected items"
+        };
+        AddSongButton.IsEnabled = enabled && _pendingItems.Count > 0 && _selectedPlaylist is not null &&
+                                  _selectedPlaylist.CanEdit && _pendingItems.All(static item => item.CanBeAddedToPlaylist);
         PlayTrackButton.IsEnabled = enabled && _selectedTrack?.CanPlayPreview == true;
     }
-
-    private static bool IsPlaylistTrack(MusicResource resource) => resource.Type is
-        "songs" or "song" or "library-songs" or "music-videos" or "music-video" or "library-music-videos";
 }

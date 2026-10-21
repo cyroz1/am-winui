@@ -28,10 +28,9 @@
         <ListView
             x:Name="RelatedList"
             Grid.Row="3"
-            IsItemClickEnabled="True"
-            ItemClick="OnItemClicked"
+            SelectionChanged="OnSelectionChanged"
             ItemTemplate="{StaticResource MusicResourceRowTemplate}"
-            SelectionMode="Single" />
+            SelectionMode="Extended" />
         <StackPanel Grid.Row="4" Spacing="6">
             <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
                 <StackPanel Orientation="Horizontal" Spacing="10">

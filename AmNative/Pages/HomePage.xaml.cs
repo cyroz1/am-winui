@@ -14,6 +14,12 @@ public sealed partial class HomePage : Page
     private bool _loaded;
     private bool _loading;
     private bool _loadingMoreRecentlyPlayed;
+    private IReadOnlyList<MusicResource> SelectedPlaylistItems => RecommendationsList.SelectedItems
+        .OfType<MusicResource>()
+        .Concat(RecentlyPlayedList.SelectedItems.OfType<MusicResource>())
+        .Where(static item => item.CanBeAddedToPlaylist)
+        .DistinctBy(static item => (item.Type, item.Id))
+        .ToArray();
 
     public HomePage()
     {
@@ -160,14 +166,13 @@ public sealed partial class HomePage : Page
         LoadMoreRecentlyPlayedButton.IsEnabled = !_loading && !_loadingMoreRecentlyPlayed && _nextRecentlyPlayedPage is not null;
     }
 
-    private void OnItemClicked(object sender, ItemClickEventArgs e)
+    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (e.ClickedItem is MusicResource item)
-        {
-            _selected = item;
-            ActionStatus.Text = "";
-            UpdateActions();
-        }
+        _selected = e.AddedItems.OfType<MusicResource>().LastOrDefault()
+            ?? RecommendationsList.SelectedItems.OfType<MusicResource>().LastOrDefault()
+            ?? RecentlyPlayedList.SelectedItems.OfType<MusicResource>().LastOrDefault();
+        ActionStatus.Text = "";
+        UpdateActions();
     }
 
     private void OnOpenClicked(object sender, RoutedEventArgs e)
@@ -221,9 +226,10 @@ public sealed partial class HomePage : Page
 
     private void OnAddToPlaylistClicked(object sender, RoutedEventArgs e)
     {
-        if (_selected is not null)
+        var items = SelectedPlaylistItems;
+        if (items.Count > 0)
         {
-            Frame.Navigate(typeof(PlaylistsPage), _selected);
+            Frame.Navigate(typeof(PlaylistsPage), items.ToArray());
         }
     }
 
@@ -251,7 +257,11 @@ public sealed partial class HomePage : Page
         OpenButton.IsEnabled = !_loading && _selected is not null && HasRelatedItems(_selected);
         PlayButton.IsEnabled = !_loading && _selected?.CanPlayPreview == true;
         AddButton.IsEnabled = !_loading && _selected is not null && !IsLibraryResource(_selected) && IsAddable(_selected);
-        PlaylistButton.IsEnabled = !_loading && (_selected?.Type is "songs" or "song" or "library-songs" or "music-videos" or "music-video" or "library-music-videos");
+        var playlistItemCount = SelectedPlaylistItems.Count;
+        PlaylistButton.Content = playlistItemCount > 1
+            ? $"Add {playlistItemCount} items to playlist"
+            : "Add to playlist";
+        PlaylistButton.IsEnabled = !_loading && playlistItemCount > 0;
         FavoriteButton.Content = _selected?.IsFavorited == true ? "Already favorited" : "Add to favorites";
         FavoriteButton.IsEnabled = !_loading && _selected is { CanBeFavorited: true, IsFavorited: false };
     }

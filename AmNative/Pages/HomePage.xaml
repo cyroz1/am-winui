@@ -7,7 +7,7 @@
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
                 <StackPanel Spacing="4">
                     <TextBlock Text="Listen now" FontSize="32" FontWeight="Bold" />
-                    <TextBlock x:Name="StatusText" Text="Your recommendations and listening history." Opacity="0.68" TextWrapping="Wrap" />
+                    <TextBlock x:Name="StatusText" Text="Your recommendations and listening history. Use Ctrl or Shift to select multiple tracks or videos for a playlist." Opacity="0.68" TextWrapping="Wrap" />
                 </StackPanel>
                 <Button x:Name="ConnectButton" Grid.Column="1" Content="Connect Apple Music" Click="OnConnectClicked" VerticalAlignment="Center" />
                 <Button x:Name="RefreshButton" Grid.Column="2" Content="Refresh" Click="OnRefreshClicked" VerticalAlignment="Center" />
@@ -18,10 +18,9 @@
                     <ListView
                         x:Name="RecommendationsList"
                         Height="340"
-                        IsItemClickEnabled="True"
-                        ItemClick="OnItemClicked"
+                        SelectionChanged="OnSelectionChanged"
                         ItemTemplate="{StaticResource MusicResourceRowTemplate}"
-                        SelectionMode="Single" />
+                        SelectionMode="Extended" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Spacing="8">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
@@ -36,10 +35,9 @@
                     <ListView
                         x:Name="RecentlyPlayedList"
                         Height="340"
-                        IsItemClickEnabled="True"
-                        ItemClick="OnItemClicked"
+                        SelectionChanged="OnSelectionChanged"
                         ItemTemplate="{StaticResource MusicResourceRowTemplate}"
-                        SelectionMode="Single" />
+                        SelectionMode="Extended" />
                 </StackPanel>
             </Grid>
             <StackPanel Orientation="Horizontal" Spacing="10">

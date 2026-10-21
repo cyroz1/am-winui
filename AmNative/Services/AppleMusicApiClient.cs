@@ -565,9 +565,9 @@ public sealed class AppleMusicApiClient
             : null;
     }
 
-    public async Task AddTracksToPlaylistAsync(string playlistId, IEnumerable<MusicResource> songs, CancellationToken cancellationToken = default)
+    public async Task AddTracksToPlaylistAsync(string playlistId, IEnumerable<MusicResource> resources, CancellationToken cancellationToken = default)
     {
-        var data = songs.Select(song => new
+        var data = resources.Select(song => new
         {
             id = song.Id,
             type = song.Type switch

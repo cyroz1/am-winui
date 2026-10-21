@@ -5,7 +5,7 @@
     <Grid Padding="32,28" RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="16">
         <StackPanel Spacing="4">
             <TextBlock Text="Your library" FontSize="30" FontWeight="Bold" />
-            <TextBlock Text="Browse songs, albums, artists, playlists, and videos saved to your Apple Music account." Opacity="0.68" />
+            <TextBlock Text="Browse songs, albums, artists, playlists, and videos saved to your Apple Music account. Use Ctrl or Shift to select multiple tracks or videos for a playlist." Opacity="0.68" />
         </StackPanel>
         <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
             <ComboBox x:Name="KindBox" SelectedIndex="0" SelectionChanged="OnKindChanged" MinWidth="150">
@@ -26,10 +26,9 @@
         <ListView
             x:Name="LibraryList"
             Grid.Row="3"
-            IsItemClickEnabled="True"
-            ItemClick="OnItemClicked"
+            SelectionChanged="OnSelectionChanged"
             ItemTemplate="{StaticResource MusicResourceRowTemplate}"
-            SelectionMode="Single" />
+            SelectionMode="Extended" />
         <StackPanel Grid.Row="4" Spacing="6">
             <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
                 <StackPanel Orientation="Horizontal" Spacing="10">

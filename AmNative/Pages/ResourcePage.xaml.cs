@@ -14,6 +14,10 @@ public sealed partial class ResourcePage : Page
     private Uri? _nextPage;
     private bool _showArtistTopSongs;
     private bool _loading;
+    private IReadOnlyList<MusicResource> SelectedPlaylistItems => RelatedList.SelectedItems
+        .OfType<MusicResource>()
+        .Where(static item => item.CanBeAddedToPlaylist)
+        .ToArray();
 
     public ResourcePage()
     {
@@ -177,9 +181,10 @@ public sealed partial class ResourcePage : Page
         }
     }
 
-    private void OnItemClicked(object sender, ItemClickEventArgs e)
+    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        _selected = e.ClickedItem as MusicResource;
+        _selected = e.AddedItems.OfType<MusicResource>().LastOrDefault()
+            ?? RelatedList.SelectedItems.OfType<MusicResource>().LastOrDefault();
         ActionStatus.Text = "";
         UpdateActions();
     }
@@ -320,9 +325,10 @@ public sealed partial class ResourcePage : Page
 
     private void OnAddToPlaylistClicked(object sender, RoutedEventArgs e)
     {
-        if (_selected is not null)
+        var items = SelectedPlaylistItems;
+        if (items.Count > 0)
         {
-            Frame.Navigate(typeof(PlaylistsPage), _selected);
+            Frame.Navigate(typeof(PlaylistsPage), items.ToArray());
         }
     }
 
@@ -341,7 +347,11 @@ public sealed partial class ResourcePage : Page
         PlayAllButton.IsEnabled = !_loading && _related.Count > 0 && (IsTrackCollection(_resource) || _showArtistTopSongs);
         PlayButton.IsEnabled = !_loading && _selected?.CanPlayPreview == true;
         AddButton.IsEnabled = !_loading && _selected is not null && !IsLibraryResource(_selected) && IsAddable(_selected);
-        PlaylistButton.IsEnabled = !_loading && (_selected?.Type is "songs" or "song" or "library-songs" or "music-videos" or "music-video" or "library-music-videos");
+        var playlistItemCount = SelectedPlaylistItems.Count;
+        PlaylistButton.Content = playlistItemCount > 1
+            ? $"Add {playlistItemCount} items to playlist"
+            : "Add to playlist";
+        PlaylistButton.IsEnabled = !_loading && playlistItemCount > 0;
         FavoriteButton.Content = _selected?.IsFavorited == true ? "Already favorited" : "Add to favorites";
         FavoriteButton.IsEnabled = !_loading && _selected is { CanBeFavorited: true, IsFavorited: false };
     }

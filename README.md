@@ -14,7 +14,7 @@ AM Native is a native Windows desktop client for Apple Music. The UI uses WinUI 
 - Browse the mixed recently added library feed.
 - Search the user's library.
 - Load playlist tracks one page at a time; fetching the full queue is deferred until the user starts playback.
-- Add catalog items to the library, create and organize nested playlist folders, and add catalog or library tracks to a playlist.
+- Add catalog items to the library, create and organize nested playlist folders, and batch-add selected catalog or library tracks and videos to editable playlists from Home, Search, Library, or item details.
 - Add catalog songs, albums, artists, and playlists to favorites from home, search, and item detail views; favorite library items when Apple returns their matching catalog ID.
 - Apply or clear like/dislike ratings for supported catalog and library items.
 - Resolve Apple-provided catalog previews for library songs when their `playParams` include a catalog ID.

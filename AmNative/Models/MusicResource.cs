@@ -28,6 +28,8 @@ public sealed class MusicResource
             !string.IsNullOrWhiteSpace(CatalogId),
         _ => false
     };
+    public bool CanBeAddedToPlaylist => Type is
+        "songs" or "song" or "library-songs" or "music-videos" or "music-video" or "library-music-videos";
     public bool CanPlayPreview => !string.IsNullOrWhiteSpace(PreviewUrl) ||
                                  (Type == "library-songs" && !string.IsNullOrWhiteSpace(CatalogId));
 

@@ -47,7 +47,7 @@
         </Grid>
         <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="10">
             <TextBlock x:Name="SelectedPlaylistText" VerticalAlignment="Center" Opacity="0.72" />
-            <Button x:Name="AddSongButton" Content="Add selected track" IsEnabled="False" Click="OnAddSongClicked" />
+            <Button x:Name="AddSongButton" Content="Add selected items" IsEnabled="False" Click="OnAddSongClicked" />
             <Button x:Name="PlayTrackButton" Content="Play preview queue" IsEnabled="False" Click="OnPlayTrackClicked" />
         </StackPanel>
     </Grid>
