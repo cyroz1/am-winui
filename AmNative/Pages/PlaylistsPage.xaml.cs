@@ -126,20 +126,20 @@ public sealed partial class PlaylistsPage : Page
         try
         {
             var selectedTracks = _pendingItems;
+            var isPublic = PublicPlaylistCheckBox.IsChecked == true;
             var playlist = await App.MusicApi.CreatePlaylistAsync(
                 name,
                 description,
                 parentFolderId: CurrentFolderId,
-                initialTracks: selectedTracks);
+                initialTracks: selectedTracks,
+                isPublic: isPublic);
             PlaylistNameBox.Text = "";
             PlaylistDescriptionBox.Text = "";
-            StatusText.Text = playlist is null
-                ? selectedTracks.Count == 0
-                    ? "Playlist created."
-                    : $"Playlist created with {selectedTracks.Count} selected items."
-                : selectedTracks.Count == 0
-                    ? $"Created “{playlist.Name}”."
-                    : $"Created “{playlist.Name}” with {selectedTracks.Count} selected items.";
+            PublicPlaylistCheckBox.IsChecked = false;
+            var playlistName = playlist?.Name ?? name;
+            var visibility = isPublic ? "public " : "";
+            var trackSummary = selectedTracks.Count == 0 ? "" : $" with {selectedTracks.Count} selected items";
+            StatusText.Text = $"Created {visibility}playlist “{playlistName}”{trackSummary}.";
             await LoadAsync();
         }
         catch (Exception exception)
@@ -525,6 +525,7 @@ public sealed partial class PlaylistsPage : Page
         UpFolderButton.IsEnabled = enabled;
         CreatePlaylistButton.IsEnabled = enabled;
         CreateFolderButton.IsEnabled = enabled;
+        PublicPlaylistCheckBox.IsEnabled = enabled;
         LoadMoreFoldersButton.Visibility = _nextFolderPage is null ? Visibility.Collapsed : Visibility.Visible;
         LoadMoreFoldersButton.IsEnabled = enabled && _nextFolderPage is not null;
         PlaylistList.IsEnabled = enabled;

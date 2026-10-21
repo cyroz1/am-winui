@@ -12,7 +12,10 @@
             <Button x:Name="CreatePlaylistButton" Grid.Column="1" Content="Create playlist" Click="OnCreateClicked" />
             <Button x:Name="CreateFolderButton" Grid.Column="2" Content="Create folder" Click="OnCreateFolderClicked" />
         </Grid>
-        <TextBox x:Name="PlaylistDescriptionBox" Grid.Row="2" PlaceholderText="Playlist description (optional)" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="56" MaxLength="1000" />
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <TextBox x:Name="PlaylistDescriptionBox" PlaceholderText="Playlist description (optional)" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="56" MaxLength="1000" />
+            <CheckBox x:Name="PublicPlaylistCheckBox" Grid.Column="1" Content="Public playlist" VerticalAlignment="Center" />
+        </Grid>
         <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
             <Button x:Name="UpFolderButton" Content="Up one folder" Visibility="Collapsed" Click="OnUpFolderClicked" />
             <TextBlock x:Name="CurrentFolderText" Grid.Column="1" Text="Playlist folders" VerticalAlignment="Center" FontWeight="SemiBold" />

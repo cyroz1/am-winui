@@ -731,9 +731,14 @@ public sealed class AppleMusicApiClient
         string? description = null,
         string? parentFolderId = null,
         IEnumerable<MusicResource>? initialTracks = null,
+        bool isPublic = false,
         CancellationToken cancellationToken = default)
     {
-        var attributes = new Dictionary<string, object?> { ["name"] = name };
+        var attributes = new Dictionary<string, object?>
+        {
+            ["name"] = name,
+            ["isPublic"] = isPublic
+        };
         if (!string.IsNullOrWhiteSpace(description))
         {
             attributes["description"] = description;

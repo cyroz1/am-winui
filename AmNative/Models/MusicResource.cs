@@ -17,6 +17,7 @@ public sealed class MusicResource
     public string? PreviewUrl { get; init; }
     public string? ShareUrl { get; init; }
     public int? DurationInMillis { get; init; }
+    public bool? IsPublic { get; init; }
     public IReadOnlyList<string> GenreNames { get; init; } = Array.Empty<string>();
     public string? ContentRating { get; init; }
     public bool? HasLyrics { get; init; }
@@ -53,6 +54,7 @@ public sealed class MusicResource
         PreviewUrl = previewUrl,
         ShareUrl = ShareUrl,
         DurationInMillis = DurationInMillis,
+        IsPublic = IsPublic,
         GenreNames = GenreNames,
         ContentRating = ContentRating,
         HasLyrics = HasLyrics,
@@ -87,6 +89,11 @@ public sealed class MusicResource
         get
         {
             var parts = new List<string>();
+            if (Type == "library-playlists" && IsPublic is bool isPublic)
+            {
+                parts.Add(isPublic ? "Public playlist" : "Private playlist");
+            }
+
             if (GenreNames.Count > 0)
             {
                 parts.Add(string.Join(", ", GenreNames));
@@ -145,6 +152,7 @@ public sealed class MusicResource
             PreviewUrl = previewUrl,
             ShareUrl = ReadString(attributes, "url"),
             DurationInMillis = duration,
+            IsPublic = ReadNullableBool(attributes, "isPublic"),
             GenreNames = ReadStringArray(attributes, "genreNames"),
             ContentRating = ReadString(attributes, "contentRating"),
             HasLyrics = ReadNullableBool(attributes, "hasLyrics"),
