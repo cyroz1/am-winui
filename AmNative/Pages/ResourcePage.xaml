@@ -24,6 +24,7 @@
         <StackPanel x:Name="ArtistViewButtons" Grid.Row="2" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
             <Button x:Name="ArtistAlbumsButton" Content="Albums" Click="OnArtistAlbumsClicked" />
             <Button x:Name="ArtistTopSongsButton" Content="Top songs" Click="OnArtistTopSongsClicked" />
+            <Button x:Name="ArtistTopMusicVideosButton" Content="Top music videos" Click="OnArtistTopMusicVideosClicked" />
         </StackPanel>
         <ListView
             x:Name="RelatedList"

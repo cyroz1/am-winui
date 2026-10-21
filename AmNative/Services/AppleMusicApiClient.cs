@@ -482,27 +482,39 @@ public sealed class AppleMusicApiClient
         return await GetApiResourcePageAsync(new Uri(ApiRoot, endpoint), cancellationToken);
     }
 
-    public async Task<MusicResourcePage> GetArtistTopSongsPageAsync(MusicResource artist, CancellationToken cancellationToken = default)
-    {
-        var endpoint = await GetArtistTopSongsEndpointAsync(artist, cancellationToken);
-        return await GetApiResourcePageAsync(new Uri(ApiRoot, endpoint), cancellationToken);
-    }
+    public Task<MusicResourcePage> GetArtistTopSongsPageAsync(MusicResource artist, CancellationToken cancellationToken = default) =>
+        GetArtistViewPageAsync(artist, "top-songs", cancellationToken);
+
+    public Task<MusicResourcePage> GetArtistTopMusicVideosPageAsync(MusicResource artist, CancellationToken cancellationToken = default) =>
+        GetArtistViewPageAsync(artist, "top-music-videos", cancellationToken);
 
     public async Task<IReadOnlyList<MusicResource>> GetArtistTopSongsAsync(MusicResource artist, CancellationToken cancellationToken = default)
     {
-        var endpoint = await GetArtistTopSongsEndpointAsync(artist, cancellationToken);
+        var endpoint = await GetArtistViewEndpointAsync(artist, "top-songs", cancellationToken);
         return await GetAllPagesAsync(endpoint, cancellationToken);
     }
 
-    private async Task<string> GetArtistTopSongsEndpointAsync(MusicResource artist, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<MusicResource>> GetArtistTopMusicVideosAsync(MusicResource artist, CancellationToken cancellationToken = default)
+    {
+        var endpoint = await GetArtistViewEndpointAsync(artist, "top-music-videos", cancellationToken);
+        return await GetAllPagesAsync(endpoint, cancellationToken);
+    }
+
+    private async Task<MusicResourcePage> GetArtistViewPageAsync(MusicResource artist, string view, CancellationToken cancellationToken)
+    {
+        var endpoint = await GetArtistViewEndpointAsync(artist, view, cancellationToken);
+        return await GetApiResourcePageAsync(new Uri(ApiRoot, endpoint), cancellationToken);
+    }
+
+    private async Task<string> GetArtistViewEndpointAsync(MusicResource artist, string view, CancellationToken cancellationToken)
     {
         if (artist.Type is not ("artists" or "artist"))
         {
-            throw new InvalidOperationException("Top songs are available for catalog artists.");
+            throw new InvalidOperationException("Artist catalog views are available for catalog artists.");
         }
 
         var storefront = await ResolveStorefrontAsync(cancellationToken);
-        return $"catalog/{storefront}/artists/{Uri.EscapeDataString(artist.Id)}/view/top-songs";
+        return $"catalog/{storefront}/artists/{Uri.EscapeDataString(artist.Id)}/view/{view}";
     }
 
     private async Task<string> GetRelatedResourcesEndpointAsync(MusicResource resource, CancellationToken cancellationToken)

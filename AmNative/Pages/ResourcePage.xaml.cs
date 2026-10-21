@@ -12,7 +12,7 @@ public sealed partial class ResourcePage : Page
     private MusicResource? _resource;
     private MusicResource? _selected;
     private Uri? _nextPage;
-    private bool _showArtistTopSongs;
+    private ArtistView _artistView;
     private bool _loading;
     private bool _addingToLibrary;
     private bool _addingToFavorites;
@@ -43,7 +43,7 @@ public sealed partial class ResourcePage : Page
         _resource = e.Parameter as MusicResource;
         _selected = null;
         _nextPage = null;
-        _showArtistTopSongs = false;
+        _artistView = ArtistView.Albums;
         _related.Clear();
         UpdateActions();
 
@@ -81,13 +81,13 @@ public sealed partial class ResourcePage : Page
         UpdateActions();
         StatusText.Text = append
             ? "Loading more items…"
-            : _showArtistTopSongs ? "Loading top songs…" : IsArtist(resource) ? "Loading albums…" : "Loading tracks…";
+            : IsCatalogArtist(resource) ? $"Loading {GetArtistViewLabel(_artistView)}…" : IsArtist(resource) ? "Loading albums…" : "Loading tracks…";
         try
         {
             var page = append
                 ? await App.MusicApi.GetNextPageAsync(_nextPage!)
-                : _showArtistTopSongs
-                    ? await App.MusicApi.GetArtistTopSongsPageAsync(resource)
+                : IsCatalogArtist(resource)
+                    ? await GetArtistViewPageAsync(resource)
                     : await App.MusicApi.GetRelatedResourcesPageAsync(resource);
             if (!ReferenceEquals(_resource, resource))
             {
@@ -109,8 +109,12 @@ public sealed partial class ResourcePage : Page
 
             _nextPage = page.NextPages.FirstOrDefault();
             StatusText.Text = _related.Count == 0
-                ? _showArtistTopSongs ? "No top songs were returned for this artist." : IsArtist(resource) ? "No albums were returned for this artist." : "No tracks were returned for this item."
-                : _showArtistTopSongs ? $"{_related.Count} top songs" : IsArtist(resource) ? $"{_related.Count} albums" : $"{_related.Count} tracks";
+                ? IsCatalogArtist(resource)
+                    ? $"No {GetArtistViewLabel(_artistView)} were returned for this artist."
+                    : IsArtist(resource) ? "No albums were returned for this artist." : "No tracks were returned for this item."
+                : IsCatalogArtist(resource)
+                    ? $"{_related.Count} {GetArtistViewLabel(_artistView)}"
+                    : IsArtist(resource) ? $"{_related.Count} albums" : $"{_related.Count} tracks";
         }
         catch (Exception exception)
         {
@@ -127,6 +131,27 @@ public sealed partial class ResourcePage : Page
         }
     }
 
+    private Task<MusicResourcePage> GetArtistViewPageAsync(MusicResource artist) => _artistView switch
+    {
+        ArtistView.TopSongs => App.MusicApi.GetArtistTopSongsPageAsync(artist),
+        ArtistView.TopMusicVideos => App.MusicApi.GetArtistTopMusicVideosPageAsync(artist),
+        _ => App.MusicApi.GetRelatedResourcesPageAsync(artist)
+    };
+
+    private Task<IReadOnlyList<MusicResource>> GetArtistViewItemsAsync(MusicResource artist) => _artistView switch
+    {
+        ArtistView.TopSongs => App.MusicApi.GetArtistTopSongsAsync(artist),
+        ArtistView.TopMusicVideos => App.MusicApi.GetArtistTopMusicVideosAsync(artist),
+        _ => App.MusicApi.GetRelatedResourcesAsync(artist)
+    };
+
+    private static string GetArtistViewLabel(ArtistView view) => view switch
+    {
+        ArtistView.TopSongs => "top songs",
+        ArtistView.TopMusicVideos => "top music videos",
+        _ => "albums"
+    };
+
     private void OnBackClicked(object sender, RoutedEventArgs e)
     {
         if (Frame.CanGoBack)
@@ -135,36 +160,31 @@ public sealed partial class ResourcePage : Page
         }
     }
 
-    private async void OnArtistAlbumsClicked(object sender, RoutedEventArgs e)
+    private async void OnArtistAlbumsClicked(object sender, RoutedEventArgs e) =>
+        await SetArtistViewAsync(ArtistView.Albums);
+
+    private async void OnArtistTopSongsClicked(object sender, RoutedEventArgs e) =>
+        await SetArtistViewAsync(ArtistView.TopSongs);
+
+    private async void OnArtistTopMusicVideosClicked(object sender, RoutedEventArgs e) =>
+        await SetArtistViewAsync(ArtistView.TopMusicVideos);
+
+    private async Task SetArtistViewAsync(ArtistView view)
     {
-        if (_resource is null || !_showArtistTopSongs)
+        if (_loading || _resource is null || !IsCatalogArtist(_resource) || _artistView == view)
         {
             return;
         }
 
-        _showArtistTopSongs = false;
+        var resource = _resource;
+        _artistView = view;
         _nextPage = null;
-        _related.Clear();
         _selected = null;
+        RelatedList.SelectedItems.Clear();
+        _related.Clear();
         ActionStatus.Text = "";
         UpdateActions();
-        await LoadRelatedPageAsync(_resource, append: false);
-    }
-
-    private async void OnArtistTopSongsClicked(object sender, RoutedEventArgs e)
-    {
-        if (_resource is null || _showArtistTopSongs || !IsCatalogArtist(_resource))
-        {
-            return;
-        }
-
-        _showArtistTopSongs = true;
-        _nextPage = null;
-        _related.Clear();
-        _selected = null;
-        ActionStatus.Text = "";
-        UpdateActions();
-        await LoadRelatedPageAsync(_resource, append: false);
+        await LoadRelatedPageAsync(resource, append: false);
     }
 
     private async void OnAddParentClicked(object sender, RoutedEventArgs e)
@@ -235,8 +255,8 @@ public sealed partial class ResourcePage : Page
             var items = queueSelection
                 ? await App.MusicApi.ResolvePreviewsForPlaybackAsync(
                     selectedItems.Where(static item => item.CanPlayPreview))
-                : _showArtistTopSongs
-                    ? await App.MusicApi.GetArtistTopSongsAsync(resource)
+                : IsCatalogArtist(resource) && _artistView != ArtistView.Albums
+                    ? await GetArtistViewItemsAsync(resource)
                     : await App.MusicApi.GetRelatedResourcesAsync(resource);
             if (!ReferenceEquals(_resource, resource))
             {
@@ -246,9 +266,11 @@ public sealed partial class ResourcePage : Page
             await App.Player.PlayQueueAsync(items, selected);
             ActionStatus.Text = queueSelection
                 ? "Playing available previews from the selection."
-                : _showArtistTopSongs
+                : IsCatalogArtist(resource) && _artistView == ArtistView.TopSongs
                     ? "Playing available top song previews from the selected track."
-                    : "Playing the selected preview and following tracks.";
+                    : IsCatalogArtist(resource) && _artistView == ArtistView.TopMusicVideos
+                        ? "Playing available music video previews from the selected video."
+                        : "Playing the selected preview and following tracks.";
         }
         catch (Exception exception)
         {
@@ -304,8 +326,9 @@ public sealed partial class ResourcePage : Page
         UpdateActions();
         try
         {
-            var items = _showArtistTopSongs
-                ? await App.MusicApi.GetArtistTopSongsAsync(resource)
+            var artistView = IsCatalogArtist(resource) && _artistView != ArtistView.Albums;
+            var items = artistView
+                ? await GetArtistViewItemsAsync(resource)
                 : await App.MusicApi.GetRelatedResourcesAsync(resource);
             if (!ReferenceEquals(_resource, resource))
             {
@@ -313,8 +336,10 @@ public sealed partial class ResourcePage : Page
             }
 
             await App.Player.PlayQueueAsync(items);
-            ActionStatus.Text = _showArtistTopSongs
-                ? "Playing available top song previews."
+            ActionStatus.Text = artistView
+                ? _artistView == ArtistView.TopSongs
+                    ? "Playing available top song previews."
+                    : "Playing available music video previews."
                 : "Playing available previews in this collection.";
         }
         catch (Exception exception)
@@ -415,13 +440,21 @@ public sealed partial class ResourcePage : Page
                                          _resource is { CanBeFavorited: true } &&
                                          _resource.IsFavorited != true;
         ArtistViewButtons.Visibility = IsCatalogArtist(_resource) ? Visibility.Visible : Visibility.Collapsed;
-        ArtistAlbumsButton.IsEnabled = !_loading && _showArtistTopSongs;
-        ArtistTopSongsButton.IsEnabled = !_loading && !_showArtistTopSongs;
+        ArtistAlbumsButton.IsEnabled = !_loading && _artistView != ArtistView.Albums;
+        ArtistTopSongsButton.IsEnabled = !_loading && _artistView != ArtistView.TopSongs;
+        ArtistTopMusicVideosButton.IsEnabled = !_loading && _artistView != ArtistView.TopMusicVideos;
         LoadMoreButton.Visibility = _nextPage is null ? Visibility.Collapsed : Visibility.Visible;
         LoadMoreButton.IsEnabled = !_loading && _nextPage is not null;
         OpenButton.IsEnabled = !_loading && _selected is not null && HasRelatedItems(_selected);
-        PlayAllButton.Content = _showArtistTopSongs ? "Play all top songs" : "Play all previews";
-        PlayAllButton.IsEnabled = !_loading && _related.Count > 0 && (IsTrackCollection(_resource) || _showArtistTopSongs);
+        PlayAllButton.Content = _artistView switch
+        {
+            ArtistView.TopSongs => "Play all top songs",
+            ArtistView.TopMusicVideos => "Play all music video previews",
+            _ => "Play all previews"
+        };
+        var hasPlayableItems = _related.Any(static item => item.CanPlayPreview);
+        PlayAllButton.IsEnabled = !_loading && hasPlayableItems &&
+                                  (IsTrackCollection(_resource) || _artistView is ArtistView.TopSongs or ArtistView.TopMusicVideos);
         var selectedItemCount = SelectedPlaylistItems.Count;
         var playableCount = SelectedPlaylistItems.Count(static item => item.CanPlayPreview);
         var previewLabel = playableCount == 1 ? "preview" : "previews";
@@ -459,4 +492,11 @@ public sealed partial class ResourcePage : Page
 
     private static bool HasRelatedItems(MusicResource resource) => resource.Type is
         "albums" or "album" or "library-albums" or "artists" or "artist" or "library-artists" or "playlists" or "playlist" or "library-playlists";
+
+    private enum ArtistView
+    {
+        Albums,
+        TopSongs,
+        TopMusicVideos
+    }
 }
