@@ -13,6 +13,7 @@ AppId={{53B67AB8-A64B-4097-BBC7-A5D1F5129A04}
 AppName=AM Native
 AppVersion={#AppVersion}
 AppPublisher=AM Native contributors
+SetupIconFile=..\AmNative\Assets\am-native.ico
 DefaultDirName={autopf}\AM Native
 DefaultGroupName=AM Native
 DisableProgramGroupPage=yes
