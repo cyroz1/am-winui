@@ -21,6 +21,7 @@
                 <ComboBoxItem Content="Top songs" Tag="songs" />
                 <ComboBoxItem Content="Top albums" Tag="albums" />
                 <ComboBoxItem Content="Top playlists" Tag="playlists" />
+                <ComboBoxItem Content="Top music videos" Tag="music-videos" />
             </ComboBox>
             <Button x:Name="BrowseChartButton" Content="Browse chart" Click="OnBrowseChartClicked" />
         </StackPanel>

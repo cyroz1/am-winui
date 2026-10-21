@@ -166,8 +166,8 @@ public sealed class AppleMusicApiClient
     {
         var resourceType = chartType switch
         {
-            "songs" or "albums" or "playlists" => chartType,
-            _ => throw new ArgumentOutOfRangeException(nameof(chartType), "Apple Music charts are available here for songs, albums, and playlists.")
+            "songs" or "albums" or "playlists" or "music-videos" => chartType,
+            _ => throw new ArgumentOutOfRangeException(nameof(chartType), "Apple Music charts are available here for songs, albums, playlists, and music videos.")
         };
 
         var storefront = await ResolveStorefrontAsync(cancellationToken);
