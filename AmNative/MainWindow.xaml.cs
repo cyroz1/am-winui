@@ -61,6 +61,38 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void OnAppShortcutInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        var route = args.KeyboardAccelerator.Key switch
+        {
+            VirtualKey.Number1 => "Home",
+            VirtualKey.Number2 or VirtualKey.F => "Search",
+            VirtualKey.Number3 => "Library",
+            VirtualKey.Number4 => "Replay",
+            VirtualKey.Number5 => "Playlists",
+            _ => null
+        };
+        if (route is null)
+        {
+            return;
+        }
+
+        args.Handled = true;
+        var item = RootNavigation.MenuItems
+            .OfType<NavigationViewItem>()
+            .FirstOrDefault(candidate => string.Equals(candidate.Tag as string, route, StringComparison.Ordinal));
+        if (item is null)
+        {
+            return;
+        }
+
+        RootNavigation.SelectedItem = item;
+        if (route == "Search")
+        {
+            RootNavigation.DispatcherQueue.TryEnqueue(() => (ContentFrame.Content as SearchPage)?.FocusSearchBox());
+        }
+    }
+
     private void OnTrackChanged(object? sender, TrackChangedEventArgs args)
     {
         NowPlayingTitle.Text = args.Title;

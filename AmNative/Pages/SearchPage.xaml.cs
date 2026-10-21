@@ -39,6 +39,8 @@ public sealed partial class SearchPage : Page
         Unloaded += (_, _) => _searchHintsCts?.Cancel();
     }
 
+    public void FocusSearchBox() => QueryBox.Focus(FocusState.Programmatic);
+
     private async void OnSearchClicked(object sender, RoutedEventArgs e) => await SearchAsync();
 
     private async void OnBrowseChartClicked(object sender, RoutedEventArgs e) => await LoadChartAsync();
