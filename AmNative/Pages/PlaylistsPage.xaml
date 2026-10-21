@@ -39,6 +39,27 @@
                         Visibility="Collapsed"
                         Click="OnLoadMoreTracksClicked" />
                 </Grid>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBox
+                        x:Name="TrackFilterBox"
+                        PlaceholderText="Filter loaded tracks"
+                        AutomationProperties.Name="Filter loaded playlist tracks"
+                        TextChanged="OnTrackFilterChanged" />
+                    <ComboBox
+                        x:Name="TrackSortBox"
+                        Grid.Column="1"
+                        MinWidth="148"
+                        SelectedIndex="0"
+                        AutomationProperties.Name="Sort playlist tracks"
+                        SelectionChanged="OnTrackSortChanged">
+                        <ComboBoxItem Content="Apple order" Tag="apple" />
+                        <ComboBoxItem Content="Title A–Z" Tag="title" />
+                        <ComboBoxItem Content="Artist A–Z" Tag="artist" />
+                        <ComboBoxItem Content="Album A–Z" Tag="album" />
+                        <ComboBoxItem Content="Duration: shortest" Tag="duration-ascending" />
+                        <ComboBoxItem Content="Duration: longest" Tag="duration-descending" />
+                    </ComboBox>
+                </Grid>
                 <ListView
                     x:Name="TracksList"
                     ItemTemplate="{StaticResource MusicResourceRowTemplate}"

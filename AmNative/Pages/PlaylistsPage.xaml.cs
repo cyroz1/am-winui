@@ -11,6 +11,7 @@ public sealed partial class PlaylistsPage : Page
     private const string RootPlaylistFolderId = "p.playlistsroot";
     private readonly ObservableCollection<MusicResource> _playlists = new();
     private readonly ObservableCollection<MusicResource> _tracks = new();
+    private readonly List<MusicResource> _loadedTracks = new();
     private readonly List<MusicResource> _folderStack = new();
     private MusicResource? _selectedPlaylist;
     private MusicResource? _selectedTrack;
@@ -25,6 +26,7 @@ public sealed partial class PlaylistsPage : Page
         .ToArray();
     private Uri? _nextFolderPage;
     private Uri? _nextTrackPage;
+    private string _trackSortMode = "apple";
     private bool _loading;
     private bool _loadingTracks;
     private bool _mutating;
@@ -198,7 +200,9 @@ public sealed partial class PlaylistsPage : Page
         _selectedTrack = null;
         _nextFolderPage = null;
         _nextTrackPage = null;
+        TrackFilterBox.Text = "";
         TracksList.SelectedItems.Clear();
+        _loadedTracks.Clear();
         _tracks.Clear();
         TracksHeading.Text = "Tracks";
         UpdateSelection();
@@ -219,7 +223,9 @@ public sealed partial class PlaylistsPage : Page
             _selectedTrack = null;
             _nextFolderPage = null;
             _nextTrackPage = null;
+            TrackFilterBox.Text = "";
             TracksList.SelectedItems.Clear();
+            _loadedTracks.Clear();
             _tracks.Clear();
             TracksHeading.Text = "Tracks";
             _folderStack.Add(clickedItem);
@@ -237,7 +243,9 @@ public sealed partial class PlaylistsPage : Page
         _selectedPlaylist = clickedItem;
         _selectedTrack = null;
         _nextTrackPage = null;
+        TrackFilterBox.Text = "";
         TracksList.SelectedItems.Clear();
+        _loadedTracks.Clear();
         _tracks.Clear();
         UpdateSelection();
 
@@ -255,6 +263,34 @@ public sealed partial class PlaylistsPage : Page
     {
         _selectedTrack = e.AddedItems.OfType<MusicResource>().LastOrDefault()
             ?? TracksList.SelectedItems.OfType<MusicResource>().LastOrDefault();
+        UpdateSelection();
+    }
+
+    private void OnTrackFilterChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        TracksList.SelectedItems.Clear();
+        _selectedTrack = null;
+        RefreshVisibleTracks();
+        UpdateTrackResultStatus();
+        UpdateSelection();
+    }
+
+    private void OnTrackSortChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (TrackSortBox.SelectedItem is not ComboBoxItem { Tag: string sortMode } || !IsLoaded)
+        {
+            return;
+        }
+
+        _trackSortMode = sortMode;
+        TracksList.SelectedItems.Clear();
+        _selectedTrack = null;
+        RefreshVisibleTracks();
         UpdateSelection();
     }
 
@@ -292,19 +328,21 @@ public sealed partial class PlaylistsPage : Page
             {
                 TracksList.SelectedItems.Clear();
                 _selectedTrack = null;
+                _loadedTracks.Clear();
                 _tracks.Clear();
             }
 
             foreach (var track in page.Items)
             {
-                if (!_tracks.Any(existing => existing.Id == track.Id && existing.Type == track.Type))
+                if (!_loadedTracks.Any(existing => existing.Id == track.Id && existing.Type == track.Type))
                 {
-                    _tracks.Add(track);
+                    _loadedTracks.Add(track);
                 }
             }
 
             _nextTrackPage = page.NextPages.FirstOrDefault();
-            StatusText.Text = $"{_tracks.Count} tracks";
+            RefreshVisibleTracks(preserveSelection: append);
+            UpdateTrackResultStatus();
         }
         catch (Exception exception)
         {
@@ -469,7 +507,9 @@ public sealed partial class PlaylistsPage : Page
                 ? $"“{_selectedPlaylist.Name}” is read-only and can’t be changed."
             : _pendingItems.Count == 0
                 ? SelectedPlaylistItems.Count == 0
-                    ? "Choose tracks or videos in Home, Search, Library, or item details first."
+                    ? _selectedPlaylist is null
+                        ? "Choose tracks or videos in Home, Search, Library, or item details first."
+                        : "Select tracks above to play, queue, or copy them."
                     : SelectedPlaylistItems.Count == 1
                         ? $"Selected track: {SelectedPlaylistItems[0].Name}. Choose a destination playlist."
                         : $"{SelectedPlaylistItems.Count} tracks selected. Choose a destination playlist."
@@ -491,6 +531,8 @@ public sealed partial class PlaylistsPage : Page
         TracksList.IsEnabled = !_loadingTracks && !_mutating;
         LoadMoreTracksButton.Visibility = _nextTrackPage is null ? Visibility.Collapsed : Visibility.Visible;
         LoadMoreTracksButton.IsEnabled = enabled && _nextTrackPage is not null;
+        TrackFilterBox.IsEnabled = _selectedPlaylist is not null && !_loading && !_loadingTracks && !_mutating;
+        TrackSortBox.IsEnabled = _selectedPlaylist is not null && !_loading && !_loadingTracks && !_mutating;
         AddSongButton.Content = _pendingItems.Count switch
         {
             1 => "Add selected item",
@@ -506,5 +548,66 @@ public sealed partial class PlaylistsPage : Page
             ? $"Add {SelectedPlayableItems.Count} to queue"
             : "Add to queue";
         QueueTrackButton.IsEnabled = enabled && SelectedPlayableItems.Count > 0;
+    }
+
+    private void RefreshVisibleTracks(bool preserveSelection = false)
+    {
+        var selectedTracks = preserveSelection
+            ? TracksList.SelectedItems.OfType<MusicResource>().ToArray()
+            : Array.Empty<MusicResource>();
+        var filter = TrackFilterBox.Text.Trim();
+        IEnumerable<MusicResource> visibleTracks = _loadedTracks;
+        if (filter.Length > 0)
+        {
+            visibleTracks = visibleTracks.Where(item =>
+                item.Name.Contains(filter, StringComparison.CurrentCultureIgnoreCase) ||
+                item.ArtistName.Contains(filter, StringComparison.CurrentCultureIgnoreCase) ||
+                item.AlbumName.Contains(filter, StringComparison.CurrentCultureIgnoreCase));
+        }
+
+        visibleTracks = _trackSortMode switch
+        {
+            "title" => visibleTracks.OrderBy(static item => item.Name, StringComparer.CurrentCultureIgnoreCase),
+            "artist" => visibleTracks
+                .OrderBy(static item => string.IsNullOrWhiteSpace(item.ArtistName))
+                .ThenBy(static item => item.ArtistName, StringComparer.CurrentCultureIgnoreCase),
+            "album" => visibleTracks
+                .OrderBy(static item => string.IsNullOrWhiteSpace(item.AlbumName))
+                .ThenBy(static item => item.AlbumName, StringComparer.CurrentCultureIgnoreCase),
+            "duration-ascending" => visibleTracks
+                .OrderBy(static item => item.DurationInMillis is null)
+                .ThenBy(static item => item.DurationInMillis ?? int.MaxValue),
+            "duration-descending" => visibleTracks
+                .OrderBy(static item => item.DurationInMillis is null)
+                .ThenByDescending(static item => item.DurationInMillis ?? int.MinValue),
+            _ => visibleTracks
+        };
+
+        _tracks.Clear();
+        foreach (var track in visibleTracks)
+        {
+            _tracks.Add(track);
+        }
+
+        var restoredSelection = selectedTracks
+            .Where(selected => _tracks.Any(track => ReferenceEquals(track, selected)))
+            .ToArray();
+        foreach (var track in restoredSelection)
+        {
+            TracksList.SelectedItems.Add(track);
+        }
+
+        if (preserveSelection)
+        {
+            _selectedTrack = restoredSelection.LastOrDefault()
+                ?? TracksList.SelectedItems.OfType<MusicResource>().LastOrDefault();
+        }
+    }
+
+    private void UpdateTrackResultStatus()
+    {
+        StatusText.Text = string.IsNullOrWhiteSpace(TrackFilterBox.Text)
+            ? $"{_loadedTracks.Count} tracks loaded"
+            : $"{_tracks.Count} matching of {_loadedTracks.Count} loaded tracks";
     }
 }
