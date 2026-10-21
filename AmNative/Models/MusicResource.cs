@@ -21,6 +21,13 @@ public sealed class MusicResource
     public int? DurationInMillis { get; init; }
     public bool IsFavorited { get; set; }
     public bool CanEdit { get; init; }
+    public bool CanBeFavorited => Type switch
+    {
+        "songs" or "song" or "albums" or "album" or "artists" or "artist" or "playlists" or "playlist" => true,
+        "library-songs" or "library-albums" or "library-artists" or "library-playlists" =>
+            !string.IsNullOrWhiteSpace(CatalogId),
+        _ => false
+    };
     public bool CanPlayPreview => !string.IsNullOrWhiteSpace(PreviewUrl) ||
                                  (Type == "library-songs" && !string.IsNullOrWhiteSpace(CatalogId));
 

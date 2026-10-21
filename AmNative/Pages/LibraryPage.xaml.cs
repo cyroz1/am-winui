@@ -236,7 +236,7 @@ public sealed partial class LibraryPage : Page
 
     private async void OnFavoriteClicked(object sender, RoutedEventArgs e)
     {
-        if (_selected is null || _selected.Type != "library-songs" || string.IsNullOrWhiteSpace(_selected.CatalogId))
+        if (_selected is null || !_selected.CanBeFavorited || _selected.IsFavorited)
         {
             return;
         }
@@ -286,10 +286,7 @@ public sealed partial class LibraryPage : Page
         AddButton.IsEnabled = _selected?.Type is
             "songs" or "song" or "library-songs" or "music-videos" or "music-video" or "library-music-videos";
         FavoriteButton.Content = selected?.IsFavorited == true ? "Already favorited" : "Add to favorites";
-        FavoriteButton.IsEnabled = selected is not null &&
-                                   selected.Type == "library-songs" &&
-                                   !string.IsNullOrWhiteSpace(selected.CatalogId) &&
-                                   !selected.IsFavorited;
+        FavoriteButton.IsEnabled = selected is { CanBeFavorited: true, IsFavorited: false };
         var supportsRating = _selected?.Type is "library-songs" or "library-albums" or "library-playlists" or "library-music-videos";
         LikeButton.IsEnabled = supportsRating;
         DislikeButton.IsEnabled = supportsRating;

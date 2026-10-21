@@ -298,7 +298,7 @@ public sealed partial class SearchPage : Page
         PlayButton.IsEnabled = _selected?.CanPlayPreview == true;
         AddButton.IsEnabled = _selected is not null;
         PlaylistButton.IsEnabled = _selected?.Type is "songs" or "song" or "music-videos" or "music-video";
-        var canFavorite = _selected?.Type is "songs" or "albums" or "artists" or "playlists";
+        var canFavorite = _selected?.CanBeFavorited == true;
         FavoriteButton.Content = _selected?.IsFavorited == true ? "Already favorited" : "Add to favorites";
         FavoriteButton.IsEnabled = canFavorite && _selected?.IsFavorited != true;
         var supportsRating = _selected?.Type is "songs" or "albums" or "playlists" or "music-videos";

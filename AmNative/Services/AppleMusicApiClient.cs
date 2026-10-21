@@ -453,17 +453,20 @@ public sealed class AppleMusicApiClient
             "songs" or "song" => "songs",
             "library-songs" => "songs",
             "albums" or "album" => "albums",
+            "library-albums" => "albums",
             "artists" or "artist" => "artists",
+            "library-artists" => "artists",
             "playlists" or "playlist" => "playlists",
+            "library-playlists" => "playlists",
             _ => throw new InvalidOperationException("Apple Music favorites are currently supported here for songs, albums, artists, and playlists.")
         };
 
-        var resourceId = resource.Type == "library-songs"
+        var resourceId = resource.Type.StartsWith("library-", StringComparison.Ordinal)
             ? resource.CatalogId
             : resource.Id;
         if (string.IsNullOrWhiteSpace(resourceId))
         {
-            throw new InvalidOperationException("This library song has no catalog ID, so Apple Music can’t add it to favorites from this view.");
+            throw new InvalidOperationException("Apple Music did not return a catalog ID for this library item, so it can’t be added to favorites from this view.");
         }
 
         var endpoint = $"me/favorites?ids%5B{catalogType}%5D={Uri.EscapeDataString(resourceId)}";

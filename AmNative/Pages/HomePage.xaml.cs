@@ -196,6 +196,29 @@ public sealed partial class HomePage : Page
         }
     }
 
+    private async void OnFavoriteClicked(object sender, RoutedEventArgs e)
+    {
+        if (_selected is null || !_selected.CanBeFavorited || _selected.IsFavorited)
+        {
+            return;
+        }
+
+        try
+        {
+            await App.MusicApi.AddToFavoritesAsync(_selected);
+            _selected.IsFavorited = true;
+            ActionStatus.Text = $"Added “{_selected.Name}” to favorites.";
+        }
+        catch (Exception exception)
+        {
+            ActionStatus.Text = exception.Message;
+        }
+        finally
+        {
+            UpdateActions();
+        }
+    }
+
     private void OnAddToPlaylistClicked(object sender, RoutedEventArgs e)
     {
         if (_selected is not null)
@@ -229,6 +252,8 @@ public sealed partial class HomePage : Page
         PlayButton.IsEnabled = !_loading && _selected?.CanPlayPreview == true;
         AddButton.IsEnabled = !_loading && _selected is not null && !IsLibraryResource(_selected) && IsAddable(_selected);
         PlaylistButton.IsEnabled = !_loading && (_selected?.Type is "songs" or "song" or "library-songs" or "music-videos" or "music-video" or "library-music-videos");
+        FavoriteButton.Content = _selected?.IsFavorited == true ? "Already favorited" : "Add to favorites";
+        FavoriteButton.IsEnabled = !_loading && _selected is { CanBeFavorited: true, IsFavorited: false };
     }
 
     private static bool IsLibraryResource(MusicResource resource) => resource.Type.StartsWith("library-", StringComparison.Ordinal);

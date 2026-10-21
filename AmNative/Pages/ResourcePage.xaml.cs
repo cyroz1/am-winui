@@ -169,6 +169,14 @@ public sealed partial class ResourcePage : Page
         }
     }
 
+    private async void OnFavoriteParentClicked(object sender, RoutedEventArgs e)
+    {
+        if (_resource is not null)
+        {
+            await FavoriteAsync(_resource);
+        }
+    }
+
     private void OnItemClicked(object sender, ItemClickEventArgs e)
     {
         _selected = e.ClickedItem as MusicResource;
@@ -279,6 +287,37 @@ public sealed partial class ResourcePage : Page
         }
     }
 
+    private async void OnFavoriteClicked(object sender, RoutedEventArgs e)
+    {
+        if (_selected is not null)
+        {
+            await FavoriteAsync(_selected);
+        }
+    }
+
+    private async Task FavoriteAsync(MusicResource resource)
+    {
+        if (!resource.CanBeFavorited || resource.IsFavorited)
+        {
+            return;
+        }
+
+        try
+        {
+            await App.MusicApi.AddToFavoritesAsync(resource);
+            resource.IsFavorited = true;
+            ActionStatus.Text = $"Added “{resource.Name}” to favorites.";
+        }
+        catch (Exception exception)
+        {
+            ActionStatus.Text = exception.Message;
+        }
+        finally
+        {
+            UpdateActions();
+        }
+    }
+
     private void OnAddToPlaylistClicked(object sender, RoutedEventArgs e)
     {
         if (_selected is not null)
@@ -290,6 +329,8 @@ public sealed partial class ResourcePage : Page
     private void UpdateActions()
     {
         AddParentButton.IsEnabled = !_loading && _resource is not null && !IsLibraryResource(_resource);
+        FavoriteParentButton.Content = _resource?.IsFavorited == true ? "Already favorited" : "Add to favorites";
+        FavoriteParentButton.IsEnabled = !_loading && _resource is { CanBeFavorited: true, IsFavorited: false };
         ArtistViewButtons.Visibility = IsCatalogArtist(_resource) ? Visibility.Visible : Visibility.Collapsed;
         ArtistAlbumsButton.IsEnabled = !_loading && _showArtistTopSongs;
         ArtistTopSongsButton.IsEnabled = !_loading && !_showArtistTopSongs;
@@ -301,6 +342,8 @@ public sealed partial class ResourcePage : Page
         PlayButton.IsEnabled = !_loading && _selected?.CanPlayPreview == true;
         AddButton.IsEnabled = !_loading && _selected is not null && !IsLibraryResource(_selected) && IsAddable(_selected);
         PlaylistButton.IsEnabled = !_loading && (_selected?.Type is "songs" or "song" or "library-songs" or "music-videos" or "music-video" or "library-music-videos");
+        FavoriteButton.Content = _selected?.IsFavorited == true ? "Already favorited" : "Add to favorites";
+        FavoriteButton.IsEnabled = !_loading && _selected is { CanBeFavorited: true, IsFavorited: false };
     }
 
     private static bool IsArtist(MusicResource resource) => resource.Type is "artists" or "artist" or "library-artists";

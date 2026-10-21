@@ -47,6 +47,7 @@
                 <Button x:Name="PlayButton" Content="Play preview" IsEnabled="False" Click="OnPlayClicked" />
                 <Button x:Name="AddButton" Content="Add to library" IsEnabled="False" Click="OnAddClicked" />
                 <Button x:Name="PlaylistButton" Content="Add to playlist" IsEnabled="False" Click="OnAddToPlaylistClicked" />
+                <Button x:Name="FavoriteButton" Content="Add to favorites" IsEnabled="False" Click="OnFavoriteClicked" />
                 <TextBlock x:Name="ActionStatus" VerticalAlignment="Center" Opacity="0.72" />
             </StackPanel>
             <TextBlock Text="Apple Music subscription tracks need an Apple-supported playback engine. This native player currently handles catalog previews." TextWrapping="Wrap" Opacity="0.58" />
