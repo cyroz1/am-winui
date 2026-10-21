@@ -14,7 +14,13 @@ public sealed partial class SearchPage : Page
     private bool _loading;
     private bool _showingChart;
     private bool _resolvingPlayback;
+    private bool _addingToLibrary;
     private string _chartLabel = "Top songs";
+    private IReadOnlyList<MusicResource> SelectedLibraryItems => ResultsList.SelectedItems
+        .OfType<MusicResource>()
+        .Where(static item => item.CanBeAddedToLibrary)
+        .DistinctBy(static item => (item.Type, item.Id))
+        .ToArray();
     private IReadOnlyList<MusicResource> SelectedPlaylistItems => ResultsList.SelectedItems
         .OfType<MusicResource>()
         .Where(static item => item.CanBeAddedToPlaylist)
@@ -229,19 +235,29 @@ public sealed partial class SearchPage : Page
 
     private async void OnAddClicked(object sender, RoutedEventArgs e)
     {
-        if (_selected is null)
+        var items = SelectedLibraryItems;
+        if (items.Count == 0 || _addingToLibrary)
         {
             return;
         }
 
+        _addingToLibrary = true;
+        UpdateActions();
         try
         {
-            await App.MusicApi.AddToLibraryAsync(_selected);
-            ActionStatus.Text = "Added to your Apple Music library.";
+            await App.MusicApi.AddToLibraryAsync(items);
+            ActionStatus.Text = items.Count == 1
+                ? $"Sent “{items[0].Name}” to your Apple Music library."
+                : $"Sent {items.Count} items to your Apple Music library.";
         }
         catch (Exception exception)
         {
             ActionStatus.Text = exception.Message;
+        }
+        finally
+        {
+            _addingToLibrary = false;
+            UpdateActions();
         }
     }
 
@@ -314,7 +330,9 @@ public sealed partial class SearchPage : Page
         var playableCount = SelectedPlaylistItems.Count(static item => item.CanPlayPreview);
         PlayButton.Content = playableCount > 1 ? $"Play {playableCount} previews" : "Play preview";
         PlayButton.IsEnabled = !_loading && !_resolvingPlayback && playableCount > 0;
-        AddButton.IsEnabled = _selected is not null;
+        var libraryItemCount = SelectedLibraryItems.Count;
+        AddButton.Content = libraryItemCount > 1 ? $"Add {libraryItemCount} items to library" : "Add to library";
+        AddButton.IsEnabled = !_loading && !_addingToLibrary && libraryItemCount > 0;
         var playlistItemCount = SelectedPlaylistItems.Count;
         PlaylistButton.Content = playlistItemCount > 1
             ? $"Add {playlistItemCount} items to playlist"

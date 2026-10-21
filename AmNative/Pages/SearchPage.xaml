@@ -5,7 +5,7 @@
     <Grid Padding="32,28" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" RowSpacing="16">
         <StackPanel Spacing="4">
             <TextBlock Text="Search Apple Music" FontSize="30" FontWeight="Bold" />
-            <TextBlock Text="Find songs, albums, artists, playlists, and music videos. Use Ctrl or Shift to select multiple tracks or videos for a playlist." Opacity="0.68" />
+            <TextBlock Text="Find songs, albums, artists, playlists, and music videos. Select multiple catalog items to add them to your library, or choose tracks and videos for a playlist." Opacity="0.68" />
         </StackPanel>
         <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="10">
             <TextBox x:Name="QueryBox" PlaceholderText="Search the catalog" KeyDown="OnQueryKeyDown" />

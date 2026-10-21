@@ -7,7 +7,7 @@
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
                 <StackPanel Spacing="4">
                     <TextBlock Text="Listen now" FontSize="32" FontWeight="Bold" />
-                    <TextBlock x:Name="StatusText" Text="Your recommendations and listening history. Use Ctrl or Shift to select multiple tracks or videos for a playlist." Opacity="0.68" TextWrapping="Wrap" />
+                    <TextBlock x:Name="StatusText" Text="Your recommendations and listening history. Select multiple catalog items to add them to your library or tracks and videos to build a playlist." Opacity="0.68" TextWrapping="Wrap" />
                 </StackPanel>
                 <Button x:Name="ConnectButton" Grid.Column="1" Content="Connect Apple Music" Click="OnConnectClicked" VerticalAlignment="Center" />
                 <Button x:Name="RefreshButton" Grid.Column="2" Content="Refresh" Click="OnRefreshClicked" VerticalAlignment="Center" />

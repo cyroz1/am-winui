@@ -21,6 +21,9 @@ public sealed class MusicResource
     public int? DurationInMillis { get; init; }
     public bool IsFavorited { get; set; }
     public bool CanEdit { get; init; }
+    public bool CanBeAddedToLibrary => Type is
+        "songs" or "song" or "albums" or "album" or "artists" or "artist" or
+        "playlists" or "playlist" or "music-videos" or "music-video";
     public bool CanBeFavorited => Type switch
     {
         "songs" or "song" or "albums" or "album" or "artists" or "artist" or "playlists" or "playlist" => true,

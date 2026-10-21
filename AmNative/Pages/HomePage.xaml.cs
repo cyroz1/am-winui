@@ -15,6 +15,13 @@ public sealed partial class HomePage : Page
     private bool _loading;
     private bool _loadingMoreRecentlyPlayed;
     private bool _resolvingPlayback;
+    private bool _addingToLibrary;
+    private IReadOnlyList<MusicResource> SelectedLibraryItems => RecommendationsList.SelectedItems
+        .OfType<MusicResource>()
+        .Concat(RecentlyPlayedList.SelectedItems.OfType<MusicResource>())
+        .Where(static item => item.CanBeAddedToLibrary)
+        .DistinctBy(static item => (item.Type, item.Id))
+        .ToArray();
     private IReadOnlyList<MusicResource> SelectedPlaylistItems => RecommendationsList.SelectedItems
         .OfType<MusicResource>()
         .Concat(RecentlyPlayedList.SelectedItems.OfType<MusicResource>())
@@ -186,19 +193,29 @@ public sealed partial class HomePage : Page
 
     private async void OnAddClicked(object sender, RoutedEventArgs e)
     {
-        if (_selected is null || IsLibraryResource(_selected))
+        var items = SelectedLibraryItems;
+        if (items.Count == 0 || _addingToLibrary)
         {
             return;
         }
 
+        _addingToLibrary = true;
+        UpdateActions();
         try
         {
-            await App.MusicApi.AddToLibraryAsync(_selected);
-            ActionStatus.Text = $"Added “{_selected.Name}” to your library.";
+            await App.MusicApi.AddToLibraryAsync(items);
+            ActionStatus.Text = items.Count == 1
+                ? $"Sent “{items[0].Name}” to your Apple Music library."
+                : $"Sent {items.Count} items to your Apple Music library.";
         }
         catch (Exception exception)
         {
             ActionStatus.Text = exception.Message;
+        }
+        finally
+        {
+            _addingToLibrary = false;
+            UpdateActions();
         }
     }
 
@@ -271,7 +288,9 @@ public sealed partial class HomePage : Page
         var playableCount = SelectedPlaylistItems.Count(static item => item.CanPlayPreview);
         PlayButton.Content = playableCount > 1 ? $"Play {playableCount} previews" : "Play preview";
         PlayButton.IsEnabled = !_loading && !_resolvingPlayback && playableCount > 0;
-        AddButton.IsEnabled = !_loading && _selected is not null && !IsLibraryResource(_selected) && IsAddable(_selected);
+        var libraryItemCount = SelectedLibraryItems.Count;
+        AddButton.Content = libraryItemCount > 1 ? $"Add {libraryItemCount} items to library" : "Add to library";
+        AddButton.IsEnabled = !_loading && !_addingToLibrary && libraryItemCount > 0;
         var playlistItemCount = SelectedPlaylistItems.Count;
         PlaylistButton.Content = playlistItemCount > 1
             ? $"Add {playlistItemCount} items to playlist"
@@ -280,11 +299,6 @@ public sealed partial class HomePage : Page
         FavoriteButton.Content = _selected?.IsFavorited == true ? "Already favorited" : "Add to favorites";
         FavoriteButton.IsEnabled = !_loading && _selected is { CanBeFavorited: true, IsFavorited: false };
     }
-
-    private static bool IsLibraryResource(MusicResource resource) => resource.Type.StartsWith("library-", StringComparison.Ordinal);
-
-    private static bool IsAddable(MusicResource resource) => resource.Type is
-        "songs" or "song" or "albums" or "album" or "artists" or "artist" or "playlists" or "playlist" or "music-videos" or "music-video";
 
     private static bool HasRelatedItems(MusicResource resource) => resource.Type is
         "albums" or "album" or "library-albums" or "artists" or "artist" or "library-artists" or "playlists" or "playlist" or "library-playlists";

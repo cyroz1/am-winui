@@ -433,23 +433,40 @@ public sealed class AppleMusicApiClient
         }
     }
 
-    public async Task AddToLibraryAsync(MusicResource resource, CancellationToken cancellationToken = default)
-    {
-        var catalogType = resource.Type switch
-        {
-            "song" or "songs" => "songs",
-            "album" or "albums" => "albums",
-            "artist" or "artists" => "artists",
-            "playlist" or "playlists" => "playlists",
-            "music-videos" or "music-video" => "music-videos",
-            _ => throw new InvalidOperationException("This Apple Music item type cannot be added to the library.")
-        };
+    public Task AddToLibraryAsync(MusicResource resource, CancellationToken cancellationToken = default) =>
+        AddToLibraryAsync(new[] { resource }, cancellationToken);
 
-        var endpoint = $"me/library?ids%5B{catalogType}%5D={Uri.EscapeDataString(resource.Id)}";
-        using var request = CreateRequest(HttpMethod.Post, endpoint);
-        using var response = await SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+    public async Task AddToLibraryAsync(IEnumerable<MusicResource> resources, CancellationToken cancellationToken = default)
+    {
+        var ids = resources
+            .Select(resource => (Type: GetLibraryCatalogType(resource.Type), resource.Id))
+            .Distinct()
+            .ToArray();
+        if (ids.Length == 0)
+        {
+            throw new InvalidOperationException("Select at least one catalog item to add to your library.");
+        }
+
+        foreach (var batch in ids.Chunk(25))
+        {
+            var query = batch
+                .GroupBy(static item => item.Type)
+                .Select(group => $"ids%5B{group.Key}%5D={string.Join(",", group.Select(static item => Uri.EscapeDataString(item.Id)))}");
+            using var request = CreateRequest(HttpMethod.Post, $"me/library?{string.Join("&", query)}");
+            using var response = await SendAsync(request, cancellationToken);
+            await EnsureSuccessAsync(response, cancellationToken);
+        }
     }
+
+    private static string GetLibraryCatalogType(string type) => type switch
+    {
+        "song" or "songs" => "songs",
+        "album" or "albums" => "albums",
+        "artist" or "artists" => "artists",
+        "playlist" or "playlists" => "playlists",
+        "music-videos" or "music-video" => "music-videos",
+        _ => throw new InvalidOperationException("This Apple Music item type cannot be added to the library.")
+    };
 
     public async Task AddToFavoritesAsync(MusicResource resource, CancellationToken cancellationToken = default)
     {
