@@ -88,66 +88,71 @@ public sealed partial class HomePage : Page
         UpdateRecentlyPlayedLoadMoreButton();
         UpdateHeavyRotationLoadMoreButton();
         StatusText.Text = "Loading your Apple Music home…";
-        var hadError = false;
+        var errors = new List<Exception>();
+        var loadedSections = new List<string>();
         try
         {
-            try
-            {
-                var recommendations = await App.MusicApi.GetRecommendationsAsync();
-                foreach (var item in recommendations)
+            var recommendationsTask = App.MusicApi.GetRecommendationsAsync();
+            var recentlyPlayedTask = App.MusicApi.GetRecentlyPlayedTracksPageAsync();
+            var heavyRotationTask = App.MusicApi.GetHeavyRotationPageAsync();
+
+            await Task.WhenAll(
+                LoadSectionAsync(recommendationsTask, recommendations =>
                 {
-                    _recommendations.Add(item);
-                }
-            }
-            catch (Exception exception)
-            {
-                hadError = true;
-                StatusText.Text = exception.Message;
-            }
+                    foreach (var item in recommendations)
+                    {
+                        _recommendations.Add(item);
+                    }
 
-            try
-            {
-                var recentlyPlayed = await App.MusicApi.GetRecentlyPlayedTracksPageAsync();
-                foreach (var item in recentlyPlayed.Items)
+                    loadedSections.Add("Recommendations");
+                }),
+                LoadSectionAsync(recentlyPlayedTask, recentlyPlayed =>
                 {
-                    _recentlyPlayed.Add(item);
-                }
+                    foreach (var item in recentlyPlayed.Items)
+                    {
+                        _recentlyPlayed.Add(item);
+                    }
 
-                _nextRecentlyPlayedPage = recentlyPlayed.NextPages.FirstOrDefault();
-            }
-            catch (Exception exception)
-            {
-                hadError = true;
-                StatusText.Text = _recommendations.Count > 0
-                    ? $"Recommendations loaded. {exception.Message}"
-                    : exception.Message;
-            }
-
-            try
-            {
-                var heavyRotation = await App.MusicApi.GetHeavyRotationPageAsync();
-                foreach (var item in heavyRotation.Items)
+                    _nextRecentlyPlayedPage = recentlyPlayed.NextPages.FirstOrDefault();
+                    loadedSections.Add("Recently played");
+                }),
+                LoadSectionAsync(heavyRotationTask, heavyRotation =>
                 {
-                    _heavyRotation.Add(item);
-                }
+                    foreach (var item in heavyRotation.Items)
+                    {
+                        _heavyRotation.Add(item);
+                    }
 
-                _nextHeavyRotationPage = heavyRotation.NextPages.FirstOrDefault();
-            }
-            catch (Exception exception)
+                    _nextHeavyRotationPage = heavyRotation.NextPages.FirstOrDefault();
+                    loadedSections.Add("Heavy rotation");
+                }));
+
+            if (errors.Count > 0)
             {
-                hadError = true;
-                StatusText.Text = _recommendations.Count > 0 || _recentlyPlayed.Count > 0
-                    ? $"Your other home sections loaded. {exception.Message}"
-                    : exception.Message;
+                var loadedSummary = loadedSections.Count == 0
+                    ? ""
+                    : $"{string.Join(", ", loadedSections)} loaded. ";
+                StatusText.Text = $"{loadedSummary}{errors[0].Message}";
             }
-
-            if (_recommendations.Count == 0 && _recentlyPlayed.Count == 0 && _heavyRotation.Count == 0 && App.Credentials.HasAnyCredential && !hadError)
+            else if (_recommendations.Count == 0 && _recentlyPlayed.Count == 0 && _heavyRotation.Count == 0 && App.Credentials.HasAnyCredential)
             {
                 StatusText.Text = "Apple Music returned no recommendations, recently played tracks, or heavy rotation items.";
             }
-            else if ((_recommendations.Count > 0 || _recentlyPlayed.Count > 0 || _heavyRotation.Count > 0) && !hadError)
+            else if (_recommendations.Count > 0 || _recentlyPlayed.Count > 0 || _heavyRotation.Count > 0)
             {
                 StatusText.Text = "Your recommendations, listening history, and heavy rotation.";
+            }
+
+            async Task LoadSectionAsync<T>(Task<T> task, Action<T> onLoaded)
+            {
+                try
+                {
+                    onLoaded(await task);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
             }
         }
         finally
