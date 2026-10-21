@@ -40,9 +40,10 @@ public sealed class MusicResource
     public bool CanBeAddedToPlaylist => Type is
         "songs" or "song" or "library-songs" or "music-videos" or "music-video" or "library-music-videos";
     public bool CanPlayPreview => !string.IsNullOrWhiteSpace(PreviewUrl) ||
-                                 (Type == "library-songs" && !string.IsNullOrWhiteSpace(CatalogId));
+                                 ((Type is "library-songs" or "library-music-videos") &&
+                                  !string.IsNullOrWhiteSpace(CatalogId));
 
-    public MusicResource WithPreviewUrl(string? previewUrl) => new()
+    public MusicResource WithPreviewUrl(string? previewUrl, string? shareUrl = null) => new()
     {
         Id = Id,
         Type = Type,
@@ -52,7 +53,7 @@ public sealed class MusicResource
         ArtworkUrl = ArtworkUrl,
         CatalogId = CatalogId,
         PreviewUrl = previewUrl,
-        ShareUrl = ShareUrl,
+        ShareUrl = ShareUrl ?? shareUrl,
         DurationInMillis = DurationInMillis,
         IsPublic = IsPublic,
         GenreNames = GenreNames,

@@ -440,55 +440,70 @@ public sealed class AppleMusicApiClient
         IReadOnlyList<MusicResource> resources,
         CancellationToken cancellationToken)
     {
-        var catalogIds = resources
-            .Where(static item => item.Type == "library-songs" &&
-                                  string.IsNullOrWhiteSpace(item.PreviewUrl) &&
-                                  !string.IsNullOrWhiteSpace(item.CatalogId))
-            .Select(static item => item.CatalogId!)
-            .Distinct(StringComparer.Ordinal)
+        var libraryItems = resources
+            .Where(static item => item.Type is "library-songs" or "library-music-videos")
+            .Where(static item =>
+                string.IsNullOrWhiteSpace(item.PreviewUrl) &&
+                !string.IsNullOrWhiteSpace(item.CatalogId))
             .ToArray();
-        if (catalogIds.Length == 0)
+        if (libraryItems.Length == 0)
         {
             return resources;
         }
 
         var storefront = await ResolveStorefrontAsync(cancellationToken);
-        var previewUrls = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var idBatch in catalogIds.Chunk(300))
+        var catalogItems = new Dictionary<(string Type, string Id), MusicResource>();
+        foreach (var group in libraryItems.GroupBy(static item => item.Type))
         {
-            var ids = string.Join(",", idBatch.Select(Uri.EscapeDataString));
-            using var request = CreateRequest(HttpMethod.Get, $"catalog/{storefront}/songs?ids={ids}");
-            using var response = await SendAsync(request, cancellationToken);
-            if (response.StatusCode == HttpStatusCode.NotFound)
+            var catalogType = group.Key == "library-songs" ? "songs" : "music-videos";
+            var catalogIds = group
+                .Select(static item => item.CatalogId!)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            var batchSize = catalogType == "music-videos" ? 100 : 300;
+            foreach (var idBatch in catalogIds.Chunk(batchSize))
             {
-                continue;
-            }
-
-            await EnsureSuccessAsync(response, cancellationToken);
-
-            using var document = await JsonDocument.ParseAsync(
-                await response.Content.ReadAsStreamAsync(cancellationToken),
-                cancellationToken: cancellationToken);
-            if (!document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
-            {
-                continue;
-            }
-
-            foreach (var song in data.EnumerateArray().Select(MusicResource.FromJson))
-            {
-                if (!string.IsNullOrWhiteSpace(song.PreviewUrl))
+                var ids = string.Join(",", idBatch.Select(Uri.EscapeDataString));
+                using var request = CreateRequest(HttpMethod.Get, $"catalog/{storefront}/{catalogType}?ids={ids}");
+                using var response = await SendAsync(request, cancellationToken);
+                if (response.StatusCode == HttpStatusCode.NotFound)
                 {
-                    previewUrls[song.Id] = song.PreviewUrl;
+                    continue;
+                }
+
+                await EnsureSuccessAsync(response, cancellationToken);
+
+                using var document = await JsonDocument.ParseAsync(
+                    await response.Content.ReadAsStreamAsync(cancellationToken),
+                    cancellationToken: cancellationToken);
+                if (!document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+                {
+                    continue;
+                }
+
+                foreach (var catalogItem in data.EnumerateArray().Select(MusicResource.FromJson))
+                {
+                    if (!string.IsNullOrWhiteSpace(catalogItem.PreviewUrl))
+                    {
+                        catalogItems[(catalogType, catalogItem.Id)] = catalogItem;
+                    }
                 }
             }
         }
 
         return resources.Select(item =>
         {
-            return item.Type == "library-songs" &&
+            var catalogType = item.Type switch
+            {
+                "library-songs" => "songs",
+                "library-music-videos" => "music-videos",
+                _ => null
+            };
+            return catalogType is not null &&
+                   string.IsNullOrWhiteSpace(item.PreviewUrl) &&
                    item.CatalogId is not null &&
-                   previewUrls.TryGetValue(item.CatalogId, out var previewUrl)
-                ? item.WithPreviewUrl(previewUrl)
+                   catalogItems.TryGetValue((catalogType, item.CatalogId), out var catalogItem)
+                ? item.WithPreviewUrl(catalogItem.PreviewUrl, catalogItem.ShareUrl)
                 : item;
         }).ToArray();
     }
