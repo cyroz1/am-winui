@@ -25,6 +25,7 @@ AM Native is a native Windows desktop client for Apple Music. The UI uses WinUI 
 - Retain an optional full Apple Music web cookie using Windows DPAPI in local app data; extract its Music User Token for documented library API requests without forwarding the cookie header.
 - Queue Apple-provided previews from multi-select Home, Search, Library, Replay, album, artist, and playlist views through the native Windows media stack. Add selections to the active queue without interrupting the current preview, inspect the visible queue, play from any queued item, reorder upcoming previews, remove queue entries, or clear the queue and stop playback. Upcoming previews can be reordered while shuffle is off; removing the current item advances to the next available preview. The player shows current track artwork and has seeking, volume and mute controls, system media controls, shuffle, and repeat. Recently played tracks load incrementally on the home page.
 - Navigate between Listen now, Search, Library, Replay, and Playlists with `Ctrl+1` through `Ctrl+5`; press `Ctrl+F` to open Search and focus its search field.
+- Use the native WinUI Mica window backdrop, which falls back to a solid surface on unsupported Windows versions.
 - Verify saved credentials against the user's Apple Music storefront before using the library features.
 - GitHub Actions builds an Inno Setup installer for x64 and ARM64 on every push.
 

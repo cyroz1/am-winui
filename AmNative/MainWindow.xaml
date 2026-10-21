@@ -4,10 +4,11 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     Title="AM Native">
-    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" RowDefinitions="*,Auto">
+    <Grid Background="Transparent" RowDefinitions="*,Auto">
         <NavigationView
             x:Name="RootNavigation"
             Grid.Row="0"
+            Background="Transparent"
             IsBackButtonVisible="Collapsed"
             IsSettingsVisible="False"
             PaneDisplayMode="LeftCompact"
