@@ -376,9 +376,19 @@ public sealed class PreviewPlayer
 
         var playbackItem = new MediaPlaybackItem(MediaSource.CreateFromUri(uri));
         var displayProperties = playbackItem.GetDisplayProperties();
-        displayProperties.Type = MediaPlaybackType.Music;
-        displayProperties.MusicProperties.Title = item.Name;
-        displayProperties.MusicProperties.Artist = item.ArtistName;
+        if (item.IsMusicVideo)
+        {
+            displayProperties.Type = MediaPlaybackType.Video;
+            displayProperties.VideoProperties.Title = item.Name;
+            displayProperties.VideoProperties.Subtitle = item.ArtistName;
+        }
+        else
+        {
+            displayProperties.Type = MediaPlaybackType.Music;
+            displayProperties.MusicProperties.Title = item.Name;
+            displayProperties.MusicProperties.Artist = item.ArtistName;
+        }
+
         var artworkUrl = item.ArtworkUrl?.Replace("{w}", "512", StringComparison.Ordinal)
             .Replace("{h}", "512", StringComparison.Ordinal);
         if (Uri.TryCreate(artworkUrl, UriKind.Absolute, out var artworkUri) && artworkUri.Scheme == Uri.UriSchemeHttps)

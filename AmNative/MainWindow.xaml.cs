@@ -103,6 +103,9 @@ public sealed partial class MainWindow : Window
         PlaybackErrorText.Visibility = Visibility.Collapsed;
         NowPlayingTitle.Text = args.Title;
         NowPlayingArtist.Text = args.Artist;
+        PlaybackElement.Visibility = args.Resource?.IsMusicVideo == true
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         var artwork = args.Resource?.ArtworkSource;
         NowPlayingArtwork.Source = artwork;
         NowPlayingArtwork.Visibility = artwork is null ? Visibility.Collapsed : Visibility.Visible;

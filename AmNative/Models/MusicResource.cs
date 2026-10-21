@@ -20,6 +20,7 @@ public sealed class MusicResource
     public string? ShareUrl { get; init; }
     public int? DurationInMillis { get; init; }
     public bool? IsFavorited { get; set; }
+    public bool IsMusicVideo => Type is "music-videos" or "music-video" or "library-music-videos";
     public bool CanEdit { get; init; }
     public bool CanBeAddedToLibrary => Type is
         "songs" or "song" or "albums" or "album" or "artists" or "artist" or
