@@ -1086,8 +1086,13 @@ public sealed class AppleMusicApiClient
             }
 
             var retryDelay = GetRetryDelay(response, attempt);
+            if (retryDelay is null)
+            {
+                return response;
+            }
+
             response.Dispose();
-            await Task.Delay(retryDelay, cancellationToken);
+            await Task.Delay(retryDelay.Value, cancellationToken);
         }
     }
 
@@ -1130,7 +1135,7 @@ public sealed class AppleMusicApiClient
             HttpStatusCode.ServiceUnavailable or
             HttpStatusCode.GatewayTimeout;
 
-    private static TimeSpan GetRetryDelay(HttpResponseMessage response, int attempt)
+    private static TimeSpan? GetRetryDelay(HttpResponseMessage response, int attempt)
     {
         var retryAfter = response.Headers.RetryAfter;
         TimeSpan? serverDelay = retryAfter?.Delta;
@@ -1139,9 +1144,15 @@ public sealed class AppleMusicApiClient
             serverDelay = retryAt - (response.Headers.Date ?? DateTimeOffset.UtcNow);
         }
 
-        var delay = serverDelay ?? TimeSpan.FromMilliseconds(250 * Math.Pow(2, attempt));
-        var boundedMilliseconds = Math.Clamp(delay.TotalMilliseconds, 0, MaximumRetryDelay.TotalMilliseconds);
-        return TimeSpan.FromMilliseconds(boundedMilliseconds);
+        if (serverDelay is { } requestedDelay)
+        {
+            // Don't retry before Apple's requested delay if it exceeds this client's wait budget.
+            return requestedDelay > MaximumRetryDelay
+                ? null
+                : TimeSpan.FromMilliseconds(Math.Max(0, requestedDelay.TotalMilliseconds));
+        }
+
+        return TimeSpan.FromMilliseconds(250 * Math.Pow(2, attempt));
     }
 
     private static Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
