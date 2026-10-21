@@ -349,7 +349,7 @@ public sealed class AppleMusicApiClient
         return new MusicResourcePage(items, nextPages);
     }
 
-    public async Task<IReadOnlyList<MusicResource>> GetRecommendationsAsync(CancellationToken cancellationToken = default)
+    public async Task<MusicResourcePage> GetRecommendationsPageAsync(CancellationToken cancellationToken = default)
     {
         using var request = CreateRequest(HttpMethod.Get, "me/recommendations?include=contents");
         using var response = await SendAsync(request, cancellationToken);
@@ -358,33 +358,42 @@ public sealed class AppleMusicApiClient
         using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
         if (!document.RootElement.TryGetProperty("data", out var recommendations) || recommendations.ValueKind != JsonValueKind.Array)
         {
-            return Array.Empty<MusicResource>();
+            return new MusicResourcePage(Array.Empty<MusicResource>(), Array.Empty<Uri>());
         }
 
         var resources = new List<MusicResource>();
+        var nextPages = new List<Uri>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
+        var seenPages = new HashSet<string>(StringComparer.Ordinal);
         foreach (var recommendation in recommendations.EnumerateArray())
         {
             if (!recommendation.TryGetProperty("relationships", out var relationships) ||
                 relationships.ValueKind != JsonValueKind.Object ||
                 !relationships.TryGetProperty("contents", out var contents) ||
-                contents.ValueKind != JsonValueKind.Object ||
-                !contents.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+                contents.ValueKind != JsonValueKind.Object)
             {
                 continue;
             }
 
-            foreach (var resource in data.EnumerateArray())
+            if (contents.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
             {
-                var item = MusicResource.FromJson(resource);
-                if (item.Id.Length > 0 && seen.Add($"{item.Type}:{item.Id}"))
+                foreach (var resource in data.EnumerateArray())
                 {
-                    resources.Add(item);
+                    var item = MusicResource.FromJson(resource);
+                    if (item.Id.Length > 0 && seen.Add($"{item.Type}:{item.Id}"))
+                    {
+                        resources.Add(item);
+                    }
                 }
+            }
+
+            if (TryReadNextPage(contents, request.RequestUri!, out var nextPage) && seenPages.Add(nextPage.AbsoluteUri))
+            {
+                nextPages.Add(nextPage);
             }
         }
 
-        return resources;
+        return new MusicResourcePage(resources, nextPages);
     }
 
     public async Task<IReadOnlyList<MusicResource>> GetPlaylistTracksAsync(string playlistId, CancellationToken cancellationToken = default)

@@ -10,11 +10,13 @@ public sealed partial class HomePage : Page
     private readonly ObservableCollection<MusicResource> _recommendations = new();
     private readonly ObservableCollection<MusicResource> _recentlyPlayed = new();
     private readonly ObservableCollection<MusicResource> _heavyRotation = new();
+    private readonly List<Uri> _nextRecommendationPages = new();
     private MusicResource? _selected;
     private Uri? _nextRecentlyPlayedPage;
     private Uri? _nextHeavyRotationPage;
     private bool _loaded;
     private bool _loading;
+    private bool _loadingMoreRecommendations;
     private bool _loadingMoreRecentlyPlayed;
     private bool _loadingMoreHeavyRotation;
     private bool _resolvingPlayback;
@@ -61,7 +63,7 @@ public sealed partial class HomePage : Page
 
     private async Task LoadAsync(bool refresh = false)
     {
-        if (_loading || _loadingMoreRecentlyPlayed || _loadingMoreHeavyRotation || (_loaded && !refresh))
+        if (_loading || _loadingMoreRecommendations || _loadingMoreRecentlyPlayed || _loadingMoreHeavyRotation || (_loaded && !refresh))
         {
             return;
         }
@@ -78,6 +80,7 @@ public sealed partial class HomePage : Page
             _recommendations.Clear();
             _recentlyPlayed.Clear();
             _heavyRotation.Clear();
+            _nextRecommendationPages.Clear();
             _nextRecentlyPlayedPage = null;
             _nextHeavyRotationPage = null;
             _selected = null;
@@ -85,6 +88,7 @@ public sealed partial class HomePage : Page
             UpdateActions();
         }
 
+        UpdateRecommendationsLoadMoreButton();
         UpdateRecentlyPlayedLoadMoreButton();
         UpdateHeavyRotationLoadMoreButton();
         StatusText.Text = "Loading your Apple Music home…";
@@ -92,18 +96,19 @@ public sealed partial class HomePage : Page
         var loadedSections = new List<string>();
         try
         {
-            var recommendationsTask = App.MusicApi.GetRecommendationsAsync();
+            var recommendationsTask = App.MusicApi.GetRecommendationsPageAsync();
             var recentlyPlayedTask = App.MusicApi.GetRecentlyPlayedTracksPageAsync();
             var heavyRotationTask = App.MusicApi.GetHeavyRotationPageAsync();
 
             await Task.WhenAll(
                 LoadSectionAsync(recommendationsTask, recommendations =>
                 {
-                    foreach (var item in recommendations)
+                    foreach (var item in recommendations.Items)
                     {
                         _recommendations.Add(item);
                     }
 
+                    _nextRecommendationPages.AddRange(recommendations.NextPages);
                     loadedSections.Add("Recommendations");
                 }),
                 LoadSectionAsync(recentlyPlayedTask, recentlyPlayed =>
@@ -163,14 +168,94 @@ public sealed partial class HomePage : Page
             RecentlyPlayedList.IsEnabled = true;
             HeavyRotationList.IsEnabled = true;
             UpdateActions();
+            UpdateRecommendationsLoadMoreButton();
             UpdateRecentlyPlayedLoadMoreButton();
             UpdateHeavyRotationLoadMoreButton();
         }
     }
 
+    private async void OnLoadMoreRecommendationsClicked(object sender, RoutedEventArgs e) => await LoadMoreRecommendationsAsync();
+
+    private async Task LoadMoreRecommendationsAsync()
+    {
+        if (_loading || _loadingMoreRecommendations || _loadingMoreRecentlyPlayed || _loadingMoreHeavyRotation ||
+            _nextRecommendationPages.Count == 0)
+        {
+            return;
+        }
+
+        var requestedPages = _nextRecommendationPages.ToArray();
+        _loadingMoreRecommendations = true;
+        UpdateRecommendationsLoadMoreButton();
+        UpdateRecentlyPlayedLoadMoreButton();
+        UpdateHeavyRotationLoadMoreButton();
+        try
+        {
+            var pages = new List<MusicResourcePage>();
+            foreach (var nextPage in requestedPages)
+            {
+                pages.Add(await App.MusicApi.GetNextPageAsync(nextPage));
+            }
+
+            if (!_nextRecommendationPages.SequenceEqual(requestedPages))
+            {
+                return;
+            }
+
+            _nextRecommendationPages.Clear();
+            var seenItems = _recommendations
+                .Select(static item => $"{item.Type}:{item.Id}")
+                .ToHashSet(StringComparer.Ordinal);
+            var seenPages = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var page in pages)
+            {
+                foreach (var item in page.Items)
+                {
+                    if (item.Id.Length > 0 && seenItems.Add($"{item.Type}:{item.Id}"))
+                    {
+                        _recommendations.Add(item);
+                    }
+                }
+
+                foreach (var nextPage in page.NextPages)
+                {
+                    if (seenPages.Add(nextPage.AbsoluteUri))
+                    {
+                        _nextRecommendationPages.Add(nextPage);
+                    }
+                }
+            }
+
+            StatusText.Text = $"{_recommendations.Count} recommendations loaded.";
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = exception.Message;
+        }
+        finally
+        {
+            _loadingMoreRecommendations = false;
+            UpdateRecommendationsLoadMoreButton();
+            UpdateRecentlyPlayedLoadMoreButton();
+            UpdateHeavyRotationLoadMoreButton();
+        }
+    }
+
+    private void UpdateRecommendationsLoadMoreButton()
+    {
+        LoadMoreRecommendationsButton.Visibility = _nextRecommendationPages.Count == 0
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        LoadMoreRecommendationsButton.IsEnabled = !_loading && !_loadingMoreRecommendations &&
+                                                   !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation &&
+                                                   _nextRecommendationPages.Count > 0;
+        RefreshButton.IsEnabled = !_loading && !_loadingMoreRecommendations &&
+                                  !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation;
+    }
+
     private async Task LoadMoreRecentlyPlayedAsync()
     {
-        if (_loading || _loadingMoreRecentlyPlayed || _loadingMoreHeavyRotation || _nextRecentlyPlayedPage is null)
+        if (_loading || _loadingMoreRecommendations || _loadingMoreRecentlyPlayed || _loadingMoreHeavyRotation || _nextRecentlyPlayedPage is null)
         {
             return;
         }
@@ -204,7 +289,9 @@ public sealed partial class HomePage : Page
         finally
         {
             _loadingMoreRecentlyPlayed = false;
+            UpdateRecommendationsLoadMoreButton();
             UpdateRecentlyPlayedLoadMoreButton();
+            UpdateHeavyRotationLoadMoreButton();
         }
     }
 
@@ -213,13 +300,13 @@ public sealed partial class HomePage : Page
         LoadMoreRecentlyPlayedButton.Visibility = _nextRecentlyPlayedPage is null
             ? Visibility.Collapsed
             : Visibility.Visible;
-        LoadMoreRecentlyPlayedButton.IsEnabled = !_loading && !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation && _nextRecentlyPlayedPage is not null;
-        RefreshButton.IsEnabled = !_loading && !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation;
+        LoadMoreRecentlyPlayedButton.IsEnabled = !_loading && !_loadingMoreRecommendations && !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation && _nextRecentlyPlayedPage is not null;
+        RefreshButton.IsEnabled = !_loading && !_loadingMoreRecommendations && !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation;
     }
 
     private async Task LoadMoreHeavyRotationAsync()
     {
-        if (_loading || _loadingMoreRecentlyPlayed || _loadingMoreHeavyRotation || _nextHeavyRotationPage is null)
+        if (_loading || _loadingMoreRecommendations || _loadingMoreRecentlyPlayed || _loadingMoreHeavyRotation || _nextHeavyRotationPage is null)
         {
             return;
         }
@@ -253,6 +340,8 @@ public sealed partial class HomePage : Page
         finally
         {
             _loadingMoreHeavyRotation = false;
+            UpdateRecommendationsLoadMoreButton();
+            UpdateRecentlyPlayedLoadMoreButton();
             UpdateHeavyRotationLoadMoreButton();
         }
     }
@@ -262,8 +351,8 @@ public sealed partial class HomePage : Page
         LoadMoreHeavyRotationButton.Visibility = _nextHeavyRotationPage is null
             ? Visibility.Collapsed
             : Visibility.Visible;
-        LoadMoreHeavyRotationButton.IsEnabled = !_loading && !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation && _nextHeavyRotationPage is not null;
-        RefreshButton.IsEnabled = !_loading && !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation;
+        LoadMoreHeavyRotationButton.IsEnabled = !_loading && !_loadingMoreRecommendations && !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation && _nextHeavyRotationPage is not null;
+        RefreshButton.IsEnabled = !_loading && !_loadingMoreRecommendations && !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation;
     }
 
     private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
