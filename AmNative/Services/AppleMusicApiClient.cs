@@ -542,6 +542,24 @@ public sealed class AppleMusicApiClient
         return await GetAllPagesAsync(endpoint, cancellationToken);
     }
 
+    public async Task<MusicResourcePage> GetSongRelationshipPageAsync(
+        MusicResource song,
+        string relationship,
+        CancellationToken cancellationToken = default)
+    {
+        var endpoint = await GetSongRelationshipEndpointAsync(song, relationship, cancellationToken);
+        return await GetApiResourcePageAsync(new Uri(ApiRoot, endpoint), cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MusicResource>> GetSongRelationshipAsync(
+        MusicResource song,
+        string relationship,
+        CancellationToken cancellationToken = default)
+    {
+        var endpoint = await GetSongRelationshipEndpointAsync(song, relationship, cancellationToken);
+        return await GetAllPagesAsync(endpoint, cancellationToken);
+    }
+
     private async Task<MusicResourcePage> GetArtistViewPageAsync(MusicResource artist, string view, CancellationToken cancellationToken)
     {
         var endpoint = await GetArtistViewEndpointAsync(artist, view, cancellationToken);
@@ -591,6 +609,36 @@ public sealed class AppleMusicApiClient
 
         var storefront = await ResolveStorefrontAsync(cancellationToken);
         return $"catalog/{storefront}/albums/{Uri.EscapeDataString(id)}/view/{view}";
+    }
+
+    private async Task<string> GetSongRelationshipEndpointAsync(
+        MusicResource song,
+        string relationship,
+        CancellationToken cancellationToken)
+    {
+        var id = Uri.EscapeDataString(song.Id);
+        switch (song.Type)
+        {
+            case "songs":
+            case "song":
+                if (relationship is not ("albums" or "artists" or "music-videos" or "station"))
+                {
+                    throw new ArgumentOutOfRangeException(nameof(relationship), "Apple Music does not document this catalog song relationship.");
+                }
+
+                return $"catalog/{await ResolveStorefrontAsync(cancellationToken)}/songs/{id}/{relationship}";
+
+            case "library-songs":
+                if (relationship is not ("albums" or "artists" or "catalog"))
+                {
+                    throw new ArgumentOutOfRangeException(nameof(relationship), "Apple Music does not document this library song relationship.");
+                }
+
+                return $"me/library/songs/{id}/{relationship}";
+
+            default:
+                throw new InvalidOperationException("Song relationships are available for catalog songs and library songs.");
+        }
     }
 
     private async Task<string> GetRelatedResourcesEndpointAsync(MusicResource resource, CancellationToken cancellationToken)

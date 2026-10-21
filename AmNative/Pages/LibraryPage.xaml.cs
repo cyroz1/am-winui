@@ -612,5 +612,5 @@ public sealed partial class LibraryPage : Page
         "library-songs" or "library-albums" or "library-playlists" or "library-music-videos";
 
     private static bool HasRelatedItems(MusicResource item) => item.Type is
-        "library-albums" or "library-artists" or "library-playlists";
+        "library-albums" or "library-artists" or "library-playlists" or "library-songs";
 }

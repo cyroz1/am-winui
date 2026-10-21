@@ -53,6 +53,20 @@
                 <ComboBoxItem Content="Related videos" Tag="related-videos" />
             </ComboBox>
         </StackPanel>
+        <StackPanel x:Name="SongViewSelector" Grid.Row="2" Orientation="Horizontal" Spacing="10" Visibility="Collapsed">
+            <TextBlock Text="Browse" VerticalAlignment="Center" Opacity="0.72" />
+            <ComboBox
+                x:Name="SongViewsBox"
+                MinWidth="260"
+                AutomationProperties.Name="Browse song relationships"
+                SelectionChanged="OnSongViewSelectionChanged">
+                <ComboBoxItem Content="Albums" Tag="albums" />
+                <ComboBoxItem Content="Artists" Tag="artists" />
+                <ComboBoxItem x:Name="SongMusicVideosItem" Content="Music videos" Tag="music-videos" />
+                <ComboBoxItem x:Name="SongStationItem" Content="Radio station" Tag="station" />
+                <ComboBoxItem x:Name="SongCatalogItem" Content="Catalog song" Tag="catalog" />
+            </ComboBox>
+        </StackPanel>
         <ListView
             x:Name="RelatedList"
             Grid.Row="3"
@@ -63,6 +77,7 @@
             <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <Button x:Name="OpenButton" Content="Open" IsEnabled="False" Click="OnOpenClicked" />
+                    <Button x:Name="PlayParentButton" Content="Play song preview" Visibility="Collapsed" IsEnabled="False" Click="OnPlayParentClicked" />
                     <Button x:Name="PlayAllButton" Content="Play all previews" IsEnabled="False" Click="OnPlayAllClicked" />
                     <Button x:Name="PlayButton" Content="Play from here" IsEnabled="False" Click="OnPlayClicked" />
                     <Button x:Name="QueueButton" Content="Add to queue" IsEnabled="False" Click="OnQueueClicked" />

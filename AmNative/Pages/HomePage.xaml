@@ -80,7 +80,7 @@
                     SelectionMode="Extended" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="10">
-                <Button x:Name="OpenButton" Content="Open album, artist, or playlist" IsEnabled="False" Click="OnOpenClicked" />
+                <Button x:Name="OpenButton" Content="Open details" IsEnabled="False" Click="OnOpenClicked" />
                 <Button x:Name="PlayButton" Content="Play preview" IsEnabled="False" Click="OnPlayClicked" />
                 <Button x:Name="QueueButton" Content="Add to queue" IsEnabled="False" Click="OnQueueClicked" />
                 <Button x:Name="AddButton" Content="Add to library" IsEnabled="False" Click="OnAddClicked" />

@@ -607,5 +607,6 @@ public sealed partial class HomePage : Page
     }
 
     private static bool HasRelatedItems(MusicResource resource) => resource.Type is
-        "albums" or "album" or "library-albums" or "artists" or "artist" or "library-artists" or "playlists" or "playlist" or "library-playlists";
+        "albums" or "album" or "library-albums" or "artists" or "artist" or "library-artists" or
+        "playlists" or "playlist" or "library-playlists" or "songs" or "song" or "library-songs";
 }
