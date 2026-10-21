@@ -5,7 +5,7 @@
     <Grid Padding="32,28" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" RowSpacing="16">
         <StackPanel Spacing="4">
             <TextBlock Text="Playlists" FontSize="30" FontWeight="Bold" />
-            <TextBlock Text="Organize folders and playlists, then add songs or music videos." Opacity="0.68" />
+            <TextBlock Text="Organize folders and playlists. Create a playlist with selected songs or videos, or add them to an existing playlist." Opacity="0.68" />
         </StackPanel>
         <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
             <TextBox x:Name="PlaylistNameBox" PlaceholderText="New playlist or folder name" />

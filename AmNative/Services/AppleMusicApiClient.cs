@@ -702,7 +702,12 @@ public sealed class AppleMusicApiClient
         _ => throw new InvalidOperationException("Apple Music does not support ratings for this resource type.")
     };
 
-    public async Task<MusicResource?> CreatePlaylistAsync(string name, string? description = null, string? parentFolderId = null, CancellationToken cancellationToken = default)
+    public async Task<MusicResource?> CreatePlaylistAsync(
+        string name,
+        string? description = null,
+        string? parentFolderId = null,
+        IEnumerable<MusicResource>? initialTracks = null,
+        CancellationToken cancellationToken = default)
     {
         var attributes = new Dictionary<string, object?> { ["name"] = name };
         if (!string.IsNullOrWhiteSpace(description))
@@ -710,19 +715,29 @@ public sealed class AppleMusicApiClient
             attributes["description"] = description;
         }
 
-        var body = parentFolderId is null
-            ? JsonSerializer.Serialize(new { attributes })
-            : JsonSerializer.Serialize(new
+        var relationships = new Dictionary<string, object>();
+        if (!string.IsNullOrWhiteSpace(parentFolderId))
+        {
+            relationships["parent"] = new
             {
-                attributes,
-                relationships = new
-                {
-                    parent = new
-                    {
-                        data = new[] { new { id = parentFolderId, type = "library-playlist-folders" } }
-                    }
-                }
-            });
+                data = new[] { new { id = parentFolderId, type = "library-playlist-folders" } }
+            };
+        }
+
+        var tracks = initialTracks?.Select(resource => new
+        {
+            id = resource.Id,
+            type = GetPlaylistTrackType(resource.Type)
+        }).ToArray();
+        if (tracks is { Length: > 0 })
+        {
+            relationships["tracks"] = new { data = tracks };
+        }
+
+        object requestBody = relationships.Count == 0
+            ? new { attributes }
+            : new { attributes, relationships };
+        var body = JsonSerializer.Serialize(requestBody);
         using var request = CreateRequest(HttpMethod.Post, "me/library/playlists");
         request.Content = new StringContent(body, Encoding.UTF8, "application/json");
         using var response = await SendAsync(request, cancellationToken);
@@ -761,15 +776,7 @@ public sealed class AppleMusicApiClient
         var data = resources.Select(song => new
         {
             id = song.Id,
-            type = song.Type switch
-            {
-                "library-songs" => "library-songs",
-                "library-music-videos" => "library-music-videos",
-                "music-videos" => "music-videos",
-                "songs" or "song" => "songs",
-                "music-video" => "music-videos",
-                _ => throw new InvalidOperationException("Only songs and music videos can be added to an Apple Music playlist.")
-            }
+            type = GetPlaylistTrackType(song.Type)
         }).ToArray();
         if (data.Length == 0)
         {
@@ -782,6 +789,15 @@ public sealed class AppleMusicApiClient
         using var response = await SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
     }
+
+    private static string GetPlaylistTrackType(string type) => type switch
+    {
+        "library-songs" => "library-songs",
+        "library-music-videos" => "library-music-videos",
+        "music-videos" or "music-video" => "music-videos",
+        "songs" or "song" => "songs",
+        _ => throw new InvalidOperationException("Only songs and music videos can be added to an Apple Music playlist.")
+    };
 
     private async Task<IReadOnlyList<MusicResource>> GetAllPagesAsync(string endpoint, CancellationToken cancellationToken)
     {

@@ -115,10 +115,21 @@ public sealed partial class PlaylistsPage : Page
         UpdateCommandState();
         try
         {
-            var playlist = await App.MusicApi.CreatePlaylistAsync(name, description, parentFolderId: CurrentFolderId);
+            var selectedTracks = _pendingItems;
+            var playlist = await App.MusicApi.CreatePlaylistAsync(
+                name,
+                description,
+                parentFolderId: CurrentFolderId,
+                initialTracks: selectedTracks);
             PlaylistNameBox.Text = "";
             PlaylistDescriptionBox.Text = "";
-            StatusText.Text = playlist is null ? "Playlist created." : $"Created “{playlist.Name}”.";
+            StatusText.Text = playlist is null
+                ? selectedTracks.Count == 0
+                    ? "Playlist created."
+                    : $"Playlist created with {selectedTracks.Count} selected items."
+                : selectedTracks.Count == 0
+                    ? $"Created “{playlist.Name}”."
+                    : $"Created “{playlist.Name}” with {selectedTracks.Count} selected items.";
             await LoadAsync();
         }
         catch (Exception exception)
