@@ -17,6 +17,7 @@ public sealed class MusicResource
     public string? PreviewUrl { get; init; }
     public string? ShareUrl { get; init; }
     public int? DurationInMillis { get; init; }
+    public IReadOnlyList<string> GenreNames { get; init; } = Array.Empty<string>();
     public bool? IsFavorited { get; set; }
     public bool IsMusicVideo => Type is "music-videos" or "music-video" or "library-music-videos";
     public bool CanEdit { get; init; }
@@ -47,6 +48,7 @@ public sealed class MusicResource
         PreviewUrl = previewUrl,
         ShareUrl = ShareUrl,
         DurationInMillis = DurationInMillis,
+        GenreNames = GenreNames,
         IsFavorited = IsFavorited,
         CanEdit = CanEdit
     };
@@ -105,6 +107,7 @@ public sealed class MusicResource
             PreviewUrl = previewUrl,
             ShareUrl = ReadString(attributes, "url"),
             DurationInMillis = duration,
+            GenreNames = ReadStringArray(attributes, "genreNames"),
             IsFavorited = ReadNullableBool(attributes, "inFavorites"),
             CanEdit = ReadBool(attributes, "canEdit")
         };
@@ -158,6 +161,24 @@ public sealed class MusicResource
         return element.ValueKind == JsonValueKind.Object && element.TryGetProperty(property, out var value) && value.TryGetInt32(out var result)
             ? result
             : null;
+    }
+
+    private static IReadOnlyList<string> ReadStringArray(JsonElement element, string property)
+    {
+        if (element.ValueKind != JsonValueKind.Object ||
+            !element.TryGetProperty(property, out var value) ||
+            value.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<string>();
+        }
+
+        return value.EnumerateArray()
+            .Where(static item => item.ValueKind == JsonValueKind.String)
+            .Select(static item => item.GetString()?.Trim())
+            .Where(static item => !string.IsNullOrWhiteSpace(item))
+            .Select(static item => item!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static bool ReadBool(JsonElement element, string property)

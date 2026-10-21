@@ -19,10 +19,18 @@
             <TextBox x:Name="LibrarySearchBox" Grid.Column="1" PlaceholderText="Search your library" KeyDown="OnSearchKeyDown" />
             <Button x:Name="RefreshButton" Grid.Column="2" Content="Refresh" Click="OnRefreshClicked" />
         </Grid>
-        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="12">
             <TextBlock x:Name="StatusText" Text="Connect Apple Music in Settings to load your library." Opacity="0.72" VerticalAlignment="Center" />
-            <ToggleButton x:Name="FavoriteFilterButton" Grid.Column="1" Content="Favorites only" Click="OnFavoriteFilterClicked" />
-            <Button x:Name="LoadMoreButton" Grid.Column="2" Content="Load more" Visibility="Collapsed" Click="OnLoadMoreClicked" />
+            <ComboBox
+                x:Name="GenreFilterBox"
+                Grid.Column="1"
+                MinWidth="170"
+                PlaceholderText="All genres"
+                ToolTipService.ToolTip="Filter loaded library items by genre"
+                AutomationProperties.Name="Filter library by genre"
+                SelectionChanged="OnGenreChanged" />
+            <ToggleButton x:Name="FavoriteFilterButton" Grid.Column="2" Content="Favorites only" Click="OnFavoriteFilterClicked" />
+            <Button x:Name="LoadMoreButton" Grid.Column="3" Content="Load more" Visibility="Collapsed" Click="OnLoadMoreClicked" />
         </Grid>
         <ListView
             x:Name="LibraryList"

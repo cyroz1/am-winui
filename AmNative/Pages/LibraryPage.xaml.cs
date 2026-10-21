@@ -15,6 +15,8 @@ public sealed partial class LibraryPage : Page
     private bool _loading;
     private bool _isSearching;
     private bool _showFavoritesOnly;
+    private bool _updatingGenreOptions;
+    private string? _selectedGenre;
     private bool _resolvingPlayback;
     private bool _addingToFavorites;
     private bool _ratingLoading;
@@ -62,6 +64,24 @@ public sealed partial class LibraryPage : Page
         UpdateActions();
     }
 
+    private void OnGenreChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingGenreOptions)
+        {
+            return;
+        }
+
+        var selectedGenre = (GenreFilterBox.SelectedItem as ComboBoxItem)?.Tag as string;
+        _selectedGenre = string.IsNullOrWhiteSpace(selectedGenre) ? null : selectedGenre;
+        LibraryList.SelectedItems.Clear();
+        _selected = null;
+        _selectedRating = null;
+        ActionStatus.Text = "";
+        RefreshVisibleItems();
+        UpdateResultStatus();
+        UpdateActions();
+    }
+
     private async void OnSearchKeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
@@ -83,9 +103,10 @@ public sealed partial class LibraryPage : Page
         _loading = true;
         _isSearching = false;
         _nextPages.Clear();
+        _loadedItems.Clear();
+        UpdateGenreFilterOptions();
         UpdateBusyState();
         StatusText.Text = "Loading your library…";
-        _loadedItems.Clear();
         _items.Clear();
         _selected = null;
         UpdateActions();
@@ -93,6 +114,7 @@ public sealed partial class LibraryPage : Page
         {
             var page = await App.MusicApi.GetLibraryPageAsync(kind);
             _loadedItems.AddRange(page.Items);
+            UpdateGenreFilterOptions();
             RefreshVisibleItems();
             _nextPages.AddRange(page.NextPages);
             UpdateResultStatus();
@@ -125,9 +147,10 @@ public sealed partial class LibraryPage : Page
         _loading = true;
         _isSearching = true;
         _nextPages.Clear();
+        _loadedItems.Clear();
+        UpdateGenreFilterOptions();
         UpdateBusyState();
         StatusText.Text = "Searching your library…";
-        _loadedItems.Clear();
         _items.Clear();
         _selected = null;
         UpdateActions();
@@ -136,6 +159,7 @@ public sealed partial class LibraryPage : Page
         {
             var result = await App.MusicApi.SearchLibraryPageAsync(term);
             _loadedItems.AddRange(result.Items);
+            UpdateGenreFilterOptions();
             RefreshVisibleItems();
             _nextPages.AddRange(result.NextPages);
             UpdateResultStatus();
@@ -176,6 +200,7 @@ public sealed partial class LibraryPage : Page
                 _nextPages.AddRange(page.NextPages);
             }
 
+            UpdateGenreFilterOptions();
             RefreshVisibleItems();
             UpdateResultStatus();
         }
@@ -196,7 +221,40 @@ public sealed partial class LibraryPage : Page
         LibrarySearchBox.IsEnabled = !_loading;
         RefreshButton.IsEnabled = !_loading;
         FavoriteFilterButton.IsEnabled = !_loading;
+        GenreFilterBox.IsEnabled = !_loading && GenreFilterBox.Items.Count > 1;
         UpdateLoadMoreButton();
+    }
+
+    private void UpdateGenreFilterOptions()
+    {
+        var previousGenre = _selectedGenre;
+        var genres = _loadedItems
+            .SelectMany(static item => item.GenreNames)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static genre => genre, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+
+        _updatingGenreOptions = true;
+        GenreFilterBox.Items.Clear();
+        GenreFilterBox.Items.Add(new ComboBoxItem { Content = "All genres", Tag = "" });
+        foreach (var genre in genres)
+        {
+            GenreFilterBox.Items.Add(new ComboBoxItem { Content = genre, Tag = genre });
+        }
+
+        var previousGenreIndex = previousGenre is null
+            ? -1
+            : Array.FindIndex(
+                genres,
+                genre => string.Equals(genre, previousGenre, StringComparison.OrdinalIgnoreCase));
+        GenreFilterBox.SelectedIndex = previousGenreIndex + 1;
+        _selectedGenre = (GenreFilterBox.SelectedItem as ComboBoxItem)?.Tag as string;
+        if (string.IsNullOrEmpty(_selectedGenre))
+        {
+            _selectedGenre = null;
+        }
+
+        _updatingGenreOptions = false;
     }
 
     private void RefreshVisibleItems()
@@ -204,7 +262,10 @@ public sealed partial class LibraryPage : Page
         _items.Clear();
         foreach (var item in _loadedItems)
         {
-            if (!_showFavoritesOnly || item.IsFavorited == true)
+            var matchesFavorites = !_showFavoritesOnly || item.IsFavorited == true;
+            var matchesGenre = _selectedGenre is null ||
+                               item.GenreNames.Contains(_selectedGenre, StringComparer.OrdinalIgnoreCase);
+            if (matchesFavorites && matchesGenre)
             {
                 _items.Add(item);
             }
@@ -215,15 +276,16 @@ public sealed partial class LibraryPage : Page
     {
         if (!_showFavoritesOnly)
         {
+            var genreSuffix = _selectedGenre is null ? "" : $" · {_selectedGenre}";
             if (_isSearching)
             {
-                StatusText.Text = $"{_items.Count} results";
+                StatusText.Text = $"{_items.Count} results{genreSuffix}";
             }
             else
             {
                 var selected = KindBox.SelectedItem as ComboBoxItem;
                 var kind = selected?.Tag as string ?? "songs";
-                StatusText.Text = $"{_items.Count} {kind}";
+                StatusText.Text = $"{_items.Count} {kind}{genreSuffix}";
             }
 
             return;
@@ -231,6 +293,11 @@ public sealed partial class LibraryPage : Page
 
         var unknownCount = _loadedItems.Count(static item => item.IsFavorited is null);
         var status = $"{_items.Count} favorites among {_loadedItems.Count} loaded items";
+        if (_selectedGenre is not null)
+        {
+            status += $" · {_selectedGenre}";
+        }
+
         if (unknownCount > 0)
         {
             status += $" · Apple did not report favorite status for {unknownCount}";
