@@ -176,35 +176,58 @@ public sealed partial class MainWindow : Window
 
     private async void OnQueueClicked(object sender, RoutedEventArgs e)
     {
-        var queue = App.Player.Queue;
-        if (queue.Count == 0)
+        if (App.Player.Queue.Count == 0)
         {
             return;
         }
 
-        var rows = queue
-            .Select((item, index) => $"{(index == App.Player.CurrentQueueIndex ? "▶  " : "")} {index + 1}. {item.Name}  ·  {item.ArtistName}")
-            .ToArray();
         var list = new ListView
         {
-            ItemsSource = rows,
             SelectionMode = ListViewSelectionMode.Single,
             MaxHeight = 520,
             MinWidth = 520
         };
-        list.SelectedIndex = Math.Clamp(App.Player.CurrentQueueIndex, 0, queue.Count - 1);
+        var clearQueueButton = new Button
+        {
+            Content = "Clear queue",
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(clearQueueButton, "Clear playback queue and stop preview playback");
+        var content = new StackPanel { Spacing = 12 };
+        content.Children.Add(list);
+        content.Children.Add(clearQueueButton);
 
         var dialog = new ContentDialog
         {
             Title = "Up next",
-            Content = list,
+            Content = content,
             PrimaryButtonText = "Play from here",
+            SecondaryButtonText = "Remove selected",
             CloseButtonText = "Close",
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = PlaybackElement.XamlRoot
         };
+
+        void RefreshQueueRows(int preferredSelection = -1)
+        {
+            var queue = App.Player.Queue;
+            var previousSelection = preferredSelection >= 0 ? preferredSelection : list.SelectedIndex;
+            list.ItemsSource = queue
+                .Select((item, index) => $"{(index == App.Player.CurrentQueueIndex ? "▶  " : "")} {index + 1}. {item.Name}  ·  {item.ArtistName}")
+                .ToArray();
+            list.SelectedIndex = queue.Count == 0
+                ? -1
+                : Math.Clamp(previousSelection < 0 ? App.Player.CurrentQueueIndex : previousSelection, 0, queue.Count - 1);
+            dialog.IsPrimaryButtonEnabled = queue.Count > 0;
+            dialog.IsSecondaryButtonEnabled = queue.Count > 0;
+        }
+
+        void OnQueueChanged(object? queueSender, EventArgs queueArgs) => RefreshQueueRows();
+
+        RefreshQueueRows(App.Player.CurrentQueueIndex);
         dialog.PrimaryButtonClick += (sender, args) =>
         {
+            var queue = App.Player.Queue;
             if (list.SelectedIndex < 0 || list.SelectedIndex >= queue.Count)
             {
                 args.Cancel = true;
@@ -213,8 +236,34 @@ public sealed partial class MainWindow : Window
 
             _ = App.Player.PlayQueueAsync(queue, queue[list.SelectedIndex]);
         };
+        dialog.SecondaryButtonClick += (sender, args) =>
+        {
+            if (list.SelectedIndex < 0 || list.SelectedIndex >= App.Player.Queue.Count)
+            {
+                args.Cancel = true;
+                return;
+            }
 
-        await dialog.ShowAsync();
+            args.Cancel = true;
+            var selectedIndex = list.SelectedIndex;
+            App.Player.RemoveQueueItem(selectedIndex);
+            RefreshQueueRows(selectedIndex);
+        };
+        clearQueueButton.Click += (_, _) =>
+        {
+            App.Player.ClearQueue();
+            dialog.Hide();
+        };
+
+        App.Player.QueueChanged += OnQueueChanged;
+        try
+        {
+            await dialog.ShowAsync();
+        }
+        finally
+        {
+            App.Player.QueueChanged -= OnQueueChanged;
+        }
     }
 
     private void UpdatePlaybackActions()

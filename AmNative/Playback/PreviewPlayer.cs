@@ -138,6 +138,69 @@ public sealed class PreviewPlayer
         return Task.CompletedTask;
     }
 
+    public void RemoveQueueItem(int index)
+    {
+        if (index < 0 || index >= _queue.Count || _playbackList is null)
+        {
+            return;
+        }
+
+        var queue = _queue;
+        if (index == _currentQueueIndex)
+        {
+            var remaining = queue.Where((_, itemIndex) => itemIndex != index).ToArray();
+            if (remaining.Length == 0)
+            {
+                ClearQueue();
+                return;
+            }
+
+            var nextIndex = Math.Min(index, remaining.Length - 1);
+            _ = PlayQueueAsync(remaining, remaining[nextIndex]);
+            return;
+        }
+
+        _playbackList.Items.RemoveAt(index);
+        _queue = queue.Where((_, itemIndex) => itemIndex != index).ToArray();
+        if (index < _currentQueueIndex)
+        {
+            _currentQueueIndex--;
+        }
+
+        UpdateTransportNavigation();
+        QueueChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void ClearQueue()
+    {
+        if (_queue.Count == 0)
+        {
+            return;
+        }
+
+        if (_playbackList is not null)
+        {
+            _playbackList.CurrentItemChanged -= OnCurrentItemChanged;
+        }
+
+        _playbackList = null;
+        _queue = Array.Empty<MusicResource>();
+        _currentQueueIndex = -1;
+        MediaPlayer.Pause();
+        if (_element is not null)
+        {
+            _element.Source = null;
+        }
+        else
+        {
+            MediaPlayer.Source = null;
+        }
+
+        UpdateTransportNavigation();
+        QueueChanged?.Invoke(this, EventArgs.Empty);
+        TrackChanged?.Invoke(this, new TrackChangedEventArgs("Nothing playing", string.Empty));
+    }
+
     public void SkipPrevious()
     {
         if (CanSkipPrevious)
