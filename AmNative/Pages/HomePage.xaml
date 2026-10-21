@@ -40,6 +40,23 @@
                         SelectionMode="Extended" />
                 </StackPanel>
             </Grid>
+            <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBlock Text="Heavy rotation" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <Button
+                        x:Name="LoadMoreHeavyRotationButton"
+                        Grid.Column="1"
+                        Content="Load more"
+                        Visibility="Collapsed"
+                        Click="OnLoadMoreHeavyRotationClicked" />
+                </Grid>
+                <ListView
+                    x:Name="HeavyRotationList"
+                    Height="280"
+                    SelectionChanged="OnSelectionChanged"
+                    ItemTemplate="{StaticResource MusicResourceRowTemplate}"
+                    SelectionMode="Extended" />
+            </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button x:Name="OpenButton" Content="Open album, artist, or playlist" IsEnabled="False" Click="OnOpenClicked" />
                 <Button x:Name="PlayButton" Content="Play preview" IsEnabled="False" Click="OnPlayClicked" />

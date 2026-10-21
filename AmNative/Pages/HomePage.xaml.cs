@@ -9,29 +9,32 @@ public sealed partial class HomePage : Page
 {
     private readonly ObservableCollection<MusicResource> _recommendations = new();
     private readonly ObservableCollection<MusicResource> _recentlyPlayed = new();
+    private readonly ObservableCollection<MusicResource> _heavyRotation = new();
     private MusicResource? _selected;
     private Uri? _nextRecentlyPlayedPage;
+    private Uri? _nextHeavyRotationPage;
     private bool _loaded;
     private bool _loading;
     private bool _loadingMoreRecentlyPlayed;
+    private bool _loadingMoreHeavyRotation;
     private bool _resolvingPlayback;
     private bool _addingToLibrary;
     private bool _addingToFavorites;
-    private IReadOnlyList<MusicResource> SelectedLibraryItems => RecommendationsList.SelectedItems
+    private IReadOnlyList<MusicResource> SelectedResources => RecommendationsList.SelectedItems
         .OfType<MusicResource>()
         .Concat(RecentlyPlayedList.SelectedItems.OfType<MusicResource>())
+        .Concat(HeavyRotationList.SelectedItems.OfType<MusicResource>())
+        .DistinctBy(static item => (item.Type, item.Id))
+        .ToArray();
+    private IReadOnlyList<MusicResource> SelectedLibraryItems => SelectedResources
         .Where(static item => item.CanBeAddedToLibrary)
         .DistinctBy(static item => (item.Type, item.Id))
         .ToArray();
-    private IReadOnlyList<MusicResource> SelectedFavoriteItems => RecommendationsList.SelectedItems
-        .OfType<MusicResource>()
-        .Concat(RecentlyPlayedList.SelectedItems.OfType<MusicResource>())
+    private IReadOnlyList<MusicResource> SelectedFavoriteItems => SelectedResources
         .Where(static item => item.CanBeFavorited && item.IsFavorited != true)
         .DistinctBy(static item => (item.Type, item.Id))
         .ToArray();
-    private IReadOnlyList<MusicResource> SelectedPlaylistItems => RecommendationsList.SelectedItems
-        .OfType<MusicResource>()
-        .Concat(RecentlyPlayedList.SelectedItems.OfType<MusicResource>())
+    private IReadOnlyList<MusicResource> SelectedPlaylistItems => SelectedResources
         .Where(static item => item.CanBeAddedToPlaylist)
         .DistinctBy(static item => (item.Type, item.Id))
         .ToArray();
@@ -41,6 +44,7 @@ public sealed partial class HomePage : Page
         InitializeComponent();
         RecommendationsList.ItemsSource = _recommendations;
         RecentlyPlayedList.ItemsSource = _recentlyPlayed;
+        HeavyRotationList.ItemsSource = _heavyRotation;
         Loaded += async (_, _) => await LoadAsync();
     }
 
@@ -53,9 +57,11 @@ public sealed partial class HomePage : Page
 
     private async void OnLoadMoreRecentlyPlayedClicked(object sender, RoutedEventArgs e) => await LoadMoreRecentlyPlayedAsync();
 
+    private async void OnLoadMoreHeavyRotationClicked(object sender, RoutedEventArgs e) => await LoadMoreHeavyRotationAsync();
+
     private async Task LoadAsync(bool refresh = false)
     {
-        if (_loading || (_loaded && !refresh))
+        if (_loading || _loadingMoreRecentlyPlayed || _loadingMoreHeavyRotation || (_loaded && !refresh))
         {
             return;
         }
@@ -66,17 +72,21 @@ public sealed partial class HomePage : Page
         RefreshButton.IsEnabled = false;
         RecommendationsList.IsEnabled = false;
         RecentlyPlayedList.IsEnabled = false;
+        HeavyRotationList.IsEnabled = false;
         if (refresh)
         {
             _recommendations.Clear();
             _recentlyPlayed.Clear();
+            _heavyRotation.Clear();
             _nextRecentlyPlayedPage = null;
+            _nextHeavyRotationPage = null;
             _selected = null;
             ActionStatus.Text = "";
             UpdateActions();
         }
 
         UpdateRecentlyPlayedLoadMoreButton();
+        UpdateHeavyRotationLoadMoreButton();
         StatusText.Text = "Loading your Apple Music home…";
         var hadError = false;
         try
@@ -113,13 +123,31 @@ public sealed partial class HomePage : Page
                     : exception.Message;
             }
 
-            if (_recommendations.Count == 0 && _recentlyPlayed.Count == 0 && App.Credentials.HasAnyCredential && !hadError)
+            try
             {
-                StatusText.Text = "Apple Music returned no recommendations or recently played tracks.";
+                var heavyRotation = await App.MusicApi.GetHeavyRotationPageAsync();
+                foreach (var item in heavyRotation.Items)
+                {
+                    _heavyRotation.Add(item);
+                }
+
+                _nextHeavyRotationPage = heavyRotation.NextPages.FirstOrDefault();
             }
-            else if ((_recommendations.Count > 0 || _recentlyPlayed.Count > 0) && !hadError)
+            catch (Exception exception)
             {
-                StatusText.Text = "Your recommendations and listening history.";
+                hadError = true;
+                StatusText.Text = _recommendations.Count > 0 || _recentlyPlayed.Count > 0
+                    ? $"Your other home sections loaded. {exception.Message}"
+                    : exception.Message;
+            }
+
+            if (_recommendations.Count == 0 && _recentlyPlayed.Count == 0 && _heavyRotation.Count == 0 && App.Credentials.HasAnyCredential && !hadError)
+            {
+                StatusText.Text = "Apple Music returned no recommendations, recently played tracks, or heavy rotation items.";
+            }
+            else if ((_recommendations.Count > 0 || _recentlyPlayed.Count > 0 || _heavyRotation.Count > 0) && !hadError)
+            {
+                StatusText.Text = "Your recommendations, listening history, and heavy rotation.";
             }
         }
         finally
@@ -128,14 +156,16 @@ public sealed partial class HomePage : Page
             RefreshButton.IsEnabled = true;
             RecommendationsList.IsEnabled = true;
             RecentlyPlayedList.IsEnabled = true;
+            HeavyRotationList.IsEnabled = true;
             UpdateActions();
             UpdateRecentlyPlayedLoadMoreButton();
+            UpdateHeavyRotationLoadMoreButton();
         }
     }
 
     private async Task LoadMoreRecentlyPlayedAsync()
     {
-        if (_loading || _loadingMoreRecentlyPlayed || _nextRecentlyPlayedPage is null)
+        if (_loading || _loadingMoreRecentlyPlayed || _loadingMoreHeavyRotation || _nextRecentlyPlayedPage is null)
         {
             return;
         }
@@ -178,14 +208,65 @@ public sealed partial class HomePage : Page
         LoadMoreRecentlyPlayedButton.Visibility = _nextRecentlyPlayedPage is null
             ? Visibility.Collapsed
             : Visibility.Visible;
-        LoadMoreRecentlyPlayedButton.IsEnabled = !_loading && !_loadingMoreRecentlyPlayed && _nextRecentlyPlayedPage is not null;
+        LoadMoreRecentlyPlayedButton.IsEnabled = !_loading && !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation && _nextRecentlyPlayedPage is not null;
+        RefreshButton.IsEnabled = !_loading && !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation;
+    }
+
+    private async Task LoadMoreHeavyRotationAsync()
+    {
+        if (_loading || _loadingMoreRecentlyPlayed || _loadingMoreHeavyRotation || _nextHeavyRotationPage is null)
+        {
+            return;
+        }
+
+        var nextPage = _nextHeavyRotationPage;
+        _loadingMoreHeavyRotation = true;
+        UpdateHeavyRotationLoadMoreButton();
+        try
+        {
+            var page = await App.MusicApi.GetNextPageAsync(nextPage);
+            if (_nextHeavyRotationPage != nextPage)
+            {
+                return;
+            }
+
+            foreach (var item in page.Items)
+            {
+                if (!_heavyRotation.Any(existing => existing.Id == item.Id && existing.Type == item.Type))
+                {
+                    _heavyRotation.Add(item);
+                }
+            }
+
+            _nextHeavyRotationPage = page.NextPages.FirstOrDefault();
+            StatusText.Text = $"{_heavyRotation.Count} heavy rotation items";
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = exception.Message;
+        }
+        finally
+        {
+            _loadingMoreHeavyRotation = false;
+            UpdateHeavyRotationLoadMoreButton();
+        }
+    }
+
+    private void UpdateHeavyRotationLoadMoreButton()
+    {
+        LoadMoreHeavyRotationButton.Visibility = _nextHeavyRotationPage is null
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        LoadMoreHeavyRotationButton.IsEnabled = !_loading && !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation && _nextHeavyRotationPage is not null;
+        RefreshButton.IsEnabled = !_loading && !_loadingMoreRecentlyPlayed && !_loadingMoreHeavyRotation;
     }
 
     private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         _selected = e.AddedItems.OfType<MusicResource>().LastOrDefault()
             ?? RecommendationsList.SelectedItems.OfType<MusicResource>().LastOrDefault()
-            ?? RecentlyPlayedList.SelectedItems.OfType<MusicResource>().LastOrDefault();
+            ?? RecentlyPlayedList.SelectedItems.OfType<MusicResource>().LastOrDefault()
+            ?? HeavyRotationList.SelectedItems.OfType<MusicResource>().LastOrDefault();
         ActionStatus.Text = "";
         UpdateActions();
     }

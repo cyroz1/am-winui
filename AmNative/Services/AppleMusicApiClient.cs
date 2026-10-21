@@ -280,6 +280,9 @@ public sealed class AppleMusicApiClient
             new Uri(ApiRoot, "me/recent/played/tracks?types=songs,library-songs,music-videos,library-music-videos&limit=30"),
             cancellationToken);
 
+    public Task<MusicResourcePage> GetHeavyRotationPageAsync(CancellationToken cancellationToken = default) =>
+        GetApiResourcePageAsync(new Uri(ApiRoot, "me/history/heavy-rotation"), cancellationToken);
+
     public async Task<ReplaySummary> GetReplaySummaryAsync(CancellationToken cancellationToken = default)
     {
         const string endpoint = "me/music-summaries?filter%5Byear%5D=latest" +
