@@ -14,6 +14,7 @@
                     <TextBlock x:Name="DeveloperTokenSummary" TextWrapping="Wrap" />
                     <TextBlock x:Name="UserTokenSummary" TextWrapping="Wrap" />
                     <TextBlock x:Name="WebCookieSummary" TextWrapping="Wrap" />
+                    <Button x:Name="ForgetWebCookieButton" Content="Remove saved web cookie" HorizontalAlignment="Left" Click="OnForgetWebCookieClicked" />
                     <TextBlock x:Name="AccessSummary" TextWrapping="Wrap" Opacity="0.72" />
                 </StackPanel>
             </Border>

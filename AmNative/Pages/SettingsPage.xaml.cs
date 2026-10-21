@@ -143,6 +143,20 @@ public sealed partial class SettingsPage : Page
         }
     }
 
+    private void OnForgetWebCookieClicked(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            App.Credentials.ClearWebCookie();
+            UpdateConnectionSummary();
+            StatusText.Text = "The saved full web cookie was removed. Its Music User Token remains saved for library API access.";
+        }
+        catch
+        {
+            StatusText.Text = "Windows could not remove the saved web cookie.";
+        }
+    }
+
     private void UpdateStatus()
     {
         UpdateDeveloperKeyStatus();
@@ -158,6 +172,7 @@ public sealed partial class SettingsPage : Page
         var hasDeveloperToken = App.Credentials.HasDeveloperToken;
         var hasUserToken = App.Credentials.HasUserCredential;
         var hasWebCookie = App.Credentials.HasWebCookie;
+        ForgetWebCookieButton.IsEnabled = hasWebCookie;
 
         DeveloperTokenSummary.Text = hasDeveloperToken
             ? App.Credentials.HasSavedDeveloperPrivateKey

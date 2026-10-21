@@ -192,6 +192,12 @@ public sealed class CredentialStore
         WindowsDataProtection.Delete(GetWebCookiePath());
     }
 
+    public void ClearWebCookie()
+    {
+        WindowsCredentialManager.Delete(GetTargetName(CookieName));
+        WindowsDataProtection.Delete(GetWebCookiePath());
+    }
+
     private string? GetGeneratedDeveloperToken()
     {
         lock (_developerTokenSync)
