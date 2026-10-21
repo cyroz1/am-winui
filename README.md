@@ -20,7 +20,8 @@ AM Native is a native Windows desktop client for Apple Music. The UI uses WinUI 
 - Resolve Apple-provided catalog previews for library songs when their `playParams` include a catalog ID.
 - Show personalized recommendations and recently played tracks on the home page.
 - Open albums, artists, and playlists to browse their related albums or tracks. Catalog artist pages include a paginated top songs view and native preview queues.
-- Store developer tokens and Music User Tokens in Windows Credential Manager; retain an optional full Apple Music web cookie using Windows DPAPI in local app data.
+- Store Music User Tokens in Windows Credential Manager and optionally sign one-hour Apple Music developer tokens locally from a `.p8` key, Team ID, and Key ID. The private key stays in Windows Credential Manager.
+- Retain an optional full Apple Music web cookie using Windows DPAPI in local app data; extract its Music User Token for documented library API requests without forwarding the cookie header.
 - Queue Apple-provided previews from multi-select Home, Search, Library, album, artist, and playlist views through the native Windows media stack, with a visible queue, play-from-here, seeking, volume and mute controls, system media controls, shuffle, and repeat. Recently played tracks load incrementally on the home page.
 - Verify saved credentials against the user's Apple Music storefront before using the library features.
 - GitHub Actions builds an Inno Setup installer for x64 and ARM64 on every push.
@@ -29,7 +30,7 @@ Apple's public API documentation describes the Music User Token for personal lib
 
 ## Credentials
 
-Open **Settings** and paste an Apple Music developer token generated for your MusicKit media identifier. For personal library access, also provide a Music User Token or a full Apple Music cookie header containing `media-user-token`. AM Native extracts the Music User Token for Apple's documented `Music-User-Token` header and stores it in Windows Credential Manager. It also retains a supplied cookie header in DPAPI-protected local app data for a future native playback adapter. The REST API client sends only the documented token headers to `api.music.apple.com`; it never sends the web cookie. Apple documents how to [generate developer tokens](https://developer.apple.com/documentation/applemusicapi/generating-developer-tokens) and [authorize a user](https://developer.apple.com/documentation/applemusicapi/user-authentication-for-musickit). The app does not log token or cookie values.
+Open **Settings** and either paste an Apple Music developer token or provide the Team ID and Key ID for your MusicKit key and select its `.p8` file. AM Native signs one-hour ES256 developer tokens on the device and stores the key in Windows Credential Manager. For personal library access, also provide a Music User Token or a full Apple Music cookie header containing `media-user-token`. AM Native extracts the Music User Token for Apple's documented `Music-User-Token` header and stores it in Windows Credential Manager. It retains a supplied cookie header in DPAPI-protected local app data, but does not forward the cookie to Apple's REST API. Apple documents how to [generate developer tokens](https://developer.apple.com/documentation/applemusicapi/generating-developer-tokens) and [authorize a user](https://developer.apple.com/documentation/applemusicapi/user-authentication-for-musickit). The app does not log token or cookie values.
 
 ## Build on Windows
 

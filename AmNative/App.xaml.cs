@@ -7,6 +7,7 @@ namespace AmNative;
 public partial class App : Application
 {
     private Window? _window;
+    public static Window? WindowInstance { get; private set; }
 
     public static CredentialStore Credentials { get; } = new();
     public static AppleMusicApiClient MusicApi { get; } = new(Credentials);
@@ -20,6 +21,7 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         _window = new MainWindow();
+        WindowInstance = _window;
         _window.Activate();
     }
 }

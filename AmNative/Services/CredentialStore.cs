@@ -9,26 +9,96 @@ public sealed class CredentialStore
 {
     private const string Resource = "AMNative.AppleMusic";
     private const string DeveloperTokenName = "developer-token";
+    private const string DeveloperTeamIdName = "developer-team-id";
+    private const string DeveloperKeyIdName = "developer-key-id";
+    private const string DeveloperPrivateKeyName = "developer-private-key";
     private const string UserTokenName = "music-user-token";
     private const string CookieName = "web-cookie";
+    private readonly object _developerTokenSync = new();
+    private string? _cachedDeveloperToken;
+    private DateTimeOffset _cachedDeveloperTokenExpiry;
 
-    public string? DeveloperToken => Read(DeveloperTokenName);
+    public string? DeveloperToken
+    {
+        get
+        {
+            lock (_developerTokenSync)
+            {
+                var savedToken = Read(DeveloperTokenName);
+                return !string.IsNullOrWhiteSpace(savedToken) ? savedToken : GetGeneratedDeveloperToken();
+            }
+        }
+    }
+    public string? DeveloperTeamId => Read(DeveloperTeamIdName);
+    public string? DeveloperKeyId => Read(DeveloperKeyIdName);
+    public bool HasSavedDeveloperPrivateKey => !string.IsNullOrWhiteSpace(Read(DeveloperPrivateKeyName));
     public string? AppleMusicWebCookie => ReadWebCookie();
     public string? MusicUserToken => NormalizeUserToken(Read(UserTokenName)) ?? ExtractUserToken(AppleMusicWebCookie);
-    public bool HasDeveloperToken => !string.IsNullOrWhiteSpace(DeveloperToken);
+    public bool HasDeveloperToken => !string.IsNullOrWhiteSpace(Read(DeveloperTokenName)) ||
+                                    (!string.IsNullOrWhiteSpace(DeveloperTeamId) &&
+                                     !string.IsNullOrWhiteSpace(DeveloperKeyId) &&
+                                     HasSavedDeveloperPrivateKey);
     public bool HasUserCredential => !string.IsNullOrWhiteSpace(MusicUserToken);
     public bool HasWebCookie => !string.IsNullOrWhiteSpace(AppleMusicWebCookie);
     public bool HasCompleteCredentials => HasDeveloperToken && HasUserCredential;
-    public bool HasAnyCredential => !string.IsNullOrWhiteSpace(DeveloperToken) ||
-                                    !string.IsNullOrWhiteSpace(MusicUserToken);
+    public bool HasAnyCredential => HasDeveloperToken || HasUserCredential || HasWebCookie;
 
-    public void Save(string? developerToken, string? musicUserToken, string? webCookie)
+    public void Save(
+        string? developerToken,
+        string? musicUserToken,
+        string? webCookie,
+        string? developerTeamId = null,
+        string? developerKeyId = null,
+        string? developerPrivateKeyPem = null)
     {
         // Blank fields mean "keep the saved value"; Forget is the explicit clear action.
         if (!string.IsNullOrWhiteSpace(developerToken) &&
             (developerToken.Length > 16384 || developerToken.Contains('\r') || developerToken.Contains('\n')))
         {
             throw new ArgumentException("The developer token is too long or contains invalid line breaks.", nameof(developerToken));
+        }
+
+        var manualDeveloperTokenSupplied = !string.IsNullOrWhiteSpace(developerToken);
+        var signingInputSupplied = !string.IsNullOrWhiteSpace(developerTeamId) ||
+                                   !string.IsNullOrWhiteSpace(developerKeyId) ||
+                                   !string.IsNullOrWhiteSpace(developerPrivateKeyPem);
+        if (manualDeveloperTokenSupplied && signingInputSupplied)
+        {
+            throw new ArgumentException("Use either a developer token or a .p8 signing key, not both.");
+        }
+
+        ValidateIdentifier(developerTeamId, nameof(developerTeamId), "Team ID");
+        ValidateIdentifier(developerKeyId, nameof(developerKeyId), "Key ID");
+        if (!string.IsNullOrWhiteSpace(developerPrivateKeyPem))
+        {
+            if (Encoding.UTF8.GetByteCount(developerPrivateKeyPem) > 8192)
+            {
+                throw new ArgumentException("The Apple Music .p8 private key file is unexpectedly large.", nameof(developerPrivateKeyPem));
+            }
+
+            DeveloperTokenSigner.ValidatePrivateKey(developerPrivateKeyPem);
+        }
+
+        string? savedTeamId = null;
+        string? savedKeyId = null;
+        string? savedPrivateKey = null;
+        if (signingInputSupplied)
+        {
+            savedTeamId = string.IsNullOrWhiteSpace(developerTeamId) ? DeveloperTeamId : developerTeamId.Trim();
+            savedKeyId = string.IsNullOrWhiteSpace(developerKeyId) ? DeveloperKeyId : developerKeyId.Trim();
+            savedPrivateKey = string.IsNullOrWhiteSpace(developerPrivateKeyPem)
+                ? Read(DeveloperPrivateKeyName)
+                : developerPrivateKeyPem.Trim();
+            if (string.IsNullOrWhiteSpace(savedTeamId) ||
+                string.IsNullOrWhiteSpace(savedKeyId) ||
+                string.IsNullOrWhiteSpace(savedPrivateKey))
+            {
+                throw new ArgumentException("Enter the Team ID and Key ID, and select the matching Apple Music .p8 key file.");
+            }
+
+            ValidateIdentifier(savedTeamId, nameof(developerTeamId), "Team ID");
+            ValidateIdentifier(savedKeyId, nameof(developerKeyId), "Key ID");
+            DeveloperTokenSigner.ValidatePrivateKey(savedPrivateKey);
         }
 
         var normalizedUserToken = NormalizeUserToken(musicUserToken);
@@ -68,25 +138,99 @@ public sealed class CredentialStore
             WindowsDataProtection.Write(GetWebCookiePath(), savedWebCookie);
         }
 
-        if (!string.IsNullOrWhiteSpace(developerToken)) Write(DeveloperTokenName, developerToken);
+        lock (_developerTokenSync)
+        {
+            if (manualDeveloperTokenSupplied)
+            {
+                Write(DeveloperTokenName, developerToken);
+                Write(DeveloperTeamIdName, null);
+                Write(DeveloperKeyIdName, null);
+                Write(DeveloperPrivateKeyName, null);
+            }
+            else if (signingInputSupplied)
+            {
+                Write(DeveloperTokenName, null);
+                Write(DeveloperTeamIdName, savedTeamId);
+                Write(DeveloperKeyIdName, savedKeyId);
+                Write(DeveloperPrivateKeyName, savedPrivateKey);
+            }
+
+            _cachedDeveloperToken = null;
+            _cachedDeveloperTokenExpiry = DateTimeOffset.MinValue;
+        }
+
         if (!string.IsNullOrWhiteSpace(savedUserToken))
         {
             Write(UserTokenName, savedUserToken);
         }
 
-        // REST API calls use the Music User Token header; retain the web session
-        // separately for the native playback adapter without sending cookies there.
+        // Preserve the supplied web cookie, but use only its Music User Token for API calls.
         Write(CookieName, null);
     }
 
     public void Clear()
     {
-        foreach (var name in new[] { DeveloperTokenName, UserTokenName, CookieName })
+        lock (_developerTokenSync)
         {
-            WindowsCredentialManager.Delete(GetTargetName(name));
+            foreach (var name in new[]
+                     {
+                         DeveloperTokenName,
+                         DeveloperTeamIdName,
+                         DeveloperKeyIdName,
+                         DeveloperPrivateKeyName,
+                         UserTokenName,
+                         CookieName
+                     })
+            {
+                WindowsCredentialManager.Delete(GetTargetName(name));
+            }
+
+            _cachedDeveloperToken = null;
+            _cachedDeveloperTokenExpiry = DateTimeOffset.MinValue;
         }
 
         WindowsDataProtection.Delete(GetWebCookiePath());
+    }
+
+    private string? GetGeneratedDeveloperToken()
+    {
+        lock (_developerTokenSync)
+        {
+            var teamId = DeveloperTeamId;
+            var keyId = DeveloperKeyId;
+            var privateKey = Read(DeveloperPrivateKeyName);
+            if (string.IsNullOrWhiteSpace(teamId) ||
+                string.IsNullOrWhiteSpace(keyId) ||
+                string.IsNullOrWhiteSpace(privateKey))
+            {
+                return null;
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            if (!string.IsNullOrWhiteSpace(_cachedDeveloperToken) &&
+                _cachedDeveloperTokenExpiry > now.AddMinutes(5))
+            {
+                return _cachedDeveloperToken;
+            }
+
+            _cachedDeveloperToken = DeveloperTokenSigner.CreateToken(teamId, keyId, privateKey, now);
+            _cachedDeveloperTokenExpiry = now.AddHours(1);
+            return _cachedDeveloperToken;
+        }
+    }
+
+    private static void ValidateIdentifier(string? value, string parameterName, string label)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        var identifier = value.Trim();
+        if (identifier.Length > 64 || !identifier.All(char.IsAsciiLetterOrDigit))
+        {
+            throw new ArgumentException($"The Apple Music {label} can contain only letters and numbers.", parameterName);
+        }
     }
 
     private static string? Read(string name)
