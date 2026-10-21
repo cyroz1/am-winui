@@ -15,6 +15,7 @@ public sealed partial class PlaylistsPage : Page
     private MusicResource? _selectedPlaylist;
     private MusicResource? _selectedTrack;
     private IReadOnlyList<MusicResource> _pendingItems = Array.Empty<MusicResource>();
+    private Uri? _nextFolderPage;
     private Uri? _nextTrackPage;
     private bool _loading;
     private bool _loadingTracks;
@@ -42,11 +43,17 @@ public sealed partial class PlaylistsPage : Page
         UpdateSelection();
     }
 
-    private async Task LoadAsync()
+    private async Task LoadAsync(bool append = false)
     {
-        if (_loading)
+        if (_loading || (append && _nextFolderPage is null))
         {
             return;
+        }
+
+        if (!append)
+        {
+            _nextFolderPage = null;
+            _playlists.Clear();
         }
 
         _loading = true;
@@ -55,22 +62,27 @@ public sealed partial class PlaylistsPage : Page
         CurrentFolderText.Text = isRoot ? "Playlist folders" : _folderStack[^1].Name;
         UpFolderButton.Visibility = isRoot ? Visibility.Collapsed : Visibility.Visible;
         UpdateCommandState();
-        StatusText.Text = "Loading your playlists…";
+        StatusText.Text = append ? "Loading more folders and playlists…" : "Loading your playlists…";
         try
         {
-            var playlists = await App.MusicApi.GetPlaylistFolderContentsAsync(folderId);
+            var page = append
+                ? await App.MusicApi.GetNextPageAsync(_nextFolderPage!)
+                : await App.MusicApi.GetPlaylistFolderContentsPageAsync(folderId);
             if (folderId != CurrentFolderId)
             {
                 return;
             }
 
-            _playlists.Clear();
-            foreach (var playlist in playlists)
+            foreach (var playlist in page.Items)
             {
-                _playlists.Add(playlist);
+                if (!_playlists.Any(existing => existing.Id == playlist.Id && existing.Type == playlist.Type))
+                {
+                    _playlists.Add(playlist);
+                }
             }
 
-            StatusText.Text = $"{playlists.Count} items";
+            _nextFolderPage = page.NextPages.FirstOrDefault();
+            StatusText.Text = $"{_playlists.Count} items";
         }
         catch (Exception exception)
         {
@@ -162,6 +174,7 @@ public sealed partial class PlaylistsPage : Page
         _folderStack.RemoveAt(_folderStack.Count - 1);
         _selectedPlaylist = null;
         _selectedTrack = null;
+        _nextFolderPage = null;
         _nextTrackPage = null;
         _tracks.Clear();
         TracksHeading.Text = "Tracks";
@@ -181,6 +194,7 @@ public sealed partial class PlaylistsPage : Page
         {
             _selectedPlaylist = null;
             _selectedTrack = null;
+            _nextFolderPage = null;
             _nextTrackPage = null;
             _tracks.Clear();
             TracksHeading.Text = "Tracks";
@@ -225,6 +239,8 @@ public sealed partial class PlaylistsPage : Page
             await LoadPlaylistTracksAsync(_selectedPlaylist, append: true);
         }
     }
+
+    private async void OnLoadMoreFoldersClicked(object sender, RoutedEventArgs e) => await LoadAsync(append: true);
 
     private async Task LoadPlaylistTracksAsync(MusicResource playlist, bool append)
     {
@@ -370,6 +386,8 @@ public sealed partial class PlaylistsPage : Page
         UpFolderButton.IsEnabled = enabled;
         CreatePlaylistButton.IsEnabled = enabled;
         CreateFolderButton.IsEnabled = enabled;
+        LoadMoreFoldersButton.Visibility = _nextFolderPage is null ? Visibility.Collapsed : Visibility.Visible;
+        LoadMoreFoldersButton.IsEnabled = enabled && _nextFolderPage is not null;
         PlaylistList.IsEnabled = enabled;
         TracksList.IsEnabled = !_loadingTracks && !_mutating;
         LoadMoreTracksButton.Visibility = _nextTrackPage is null ? Visibility.Collapsed : Visibility.Visible;

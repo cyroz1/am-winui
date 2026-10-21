@@ -366,10 +366,10 @@ public sealed class AppleMusicApiClient
         }).ToArray();
     }
 
-    public Task<IReadOnlyList<MusicResource>> GetPlaylistFolderContentsAsync(string folderId, CancellationToken cancellationToken = default)
+    public Task<MusicResourcePage> GetPlaylistFolderContentsPageAsync(string folderId, CancellationToken cancellationToken = default)
     {
         var endpoint = $"me/library/playlist-folders/{Uri.EscapeDataString(folderId)}/children?limit=100";
-        return GetAllPagesAsync(endpoint, cancellationToken);
+        return GetApiResourcePageAsync(new Uri(ApiRoot, endpoint), cancellationToken);
     }
 
     public async Task<IReadOnlyList<MusicResource>> GetRelatedResourcesAsync(MusicResource resource, CancellationToken cancellationToken = default)

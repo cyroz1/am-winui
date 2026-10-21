@@ -12,10 +12,11 @@
             <Button x:Name="CreatePlaylistButton" Grid.Column="1" Content="Create playlist" Click="OnCreateClicked" />
             <Button x:Name="CreateFolderButton" Grid.Column="2" Content="Create folder" Click="OnCreateFolderClicked" />
         </Grid>
-        <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
             <Button x:Name="UpFolderButton" Content="Up one folder" Visibility="Collapsed" Click="OnUpFolderClicked" />
             <TextBlock x:Name="CurrentFolderText" Grid.Column="1" Text="Playlist folders" VerticalAlignment="Center" FontWeight="SemiBold" />
             <TextBlock x:Name="StatusText" Grid.Column="2" Text="Connect Apple Music in Settings to load your playlists." Opacity="0.72" VerticalAlignment="Center" TextWrapping="Wrap" />
+            <Button x:Name="LoadMoreFoldersButton" Grid.Column="3" Content="Load more" Visibility="Collapsed" Click="OnLoadMoreFoldersClicked" />
         </Grid>
         <Grid Grid.Row="3" ColumnDefinitions="*,*" ColumnSpacing="18">
             <StackPanel Spacing="8">
