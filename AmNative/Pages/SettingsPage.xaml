@@ -6,7 +6,7 @@
         <StackPanel MaxWidth="720" Padding="32,28" Spacing="18" HorizontalAlignment="Left">
             <StackPanel Spacing="4">
                 <TextBlock Text="Apple Music connection" FontSize="30" FontWeight="Bold" />
-            <TextBlock Text="Your credentials stay in Windows Credential Manager. API requests send the developer token and Music User Token only to api.music.apple.com." TextWrapping="Wrap" Opacity="0.68" />
+                <TextBlock Text="Developer and Music User Tokens stay in Windows Credential Manager. A pasted web cookie is protected with Windows DPAPI in local app data. REST API requests send only the Music User Token to api.music.apple.com." TextWrapping="Wrap" Opacity="0.68" />
             </StackPanel>
             <TextBlock Text="Developer token" FontWeight="SemiBold" />
             <PasswordBox x:Name="DeveloperTokenBox" PlaceholderText="Apple Music developer token" />
@@ -14,7 +14,7 @@
             <PasswordBox x:Name="UserTokenBox" PlaceholderText="Optional if supplied in the cookie below" />
             <TextBlock Text="Apple Music web cookie" FontWeight="SemiBold" />
             <PasswordBox x:Name="CookieBox" PlaceholderText="Optional full Cookie header, including media-user-token" />
-            <TextBlock Text="Apple's public Music API requires a developer token. Requests for your library also require a Music User Token. Paste a web cookie header to import its media-user-token; AM Native discards the other cookies and sends only that token to Apple's API." TextWrapping="Wrap" Opacity="0.7" />
+            <TextBlock Text="Apple's public Music API requires a developer token. Requests for your library also require a Music User Token. Paste a web cookie header to save its Music User Token separately and retain the full cookie in DPAPI-protected local storage. The REST API client never forwards the cookie header." TextWrapping="Wrap" Opacity="0.7" />
             <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button Content="Save securely" Click="OnSaveClicked" />
                 <Button x:Name="TestConnectionButton" Content="Test saved connection" Click="OnTestConnectionClicked" />

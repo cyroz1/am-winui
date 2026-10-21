@@ -13,9 +13,11 @@ public sealed class CredentialStore
     private const string CookieName = "web-cookie";
 
     public string? DeveloperToken => Read(DeveloperTokenName);
-    public string? MusicUserToken => NormalizeUserToken(Read(UserTokenName)) ?? ExtractUserToken(Read(CookieName));
+    public string? AppleMusicWebCookie => ReadWebCookie();
+    public string? MusicUserToken => NormalizeUserToken(Read(UserTokenName)) ?? ExtractUserToken(AppleMusicWebCookie);
     public bool HasDeveloperToken => !string.IsNullOrWhiteSpace(DeveloperToken);
     public bool HasUserCredential => !string.IsNullOrWhiteSpace(MusicUserToken);
+    public bool HasWebCookie => !string.IsNullOrWhiteSpace(AppleMusicWebCookie);
     public bool HasCompleteCredentials => HasDeveloperToken && HasUserCredential;
     public bool HasAnyCredential => !string.IsNullOrWhiteSpace(DeveloperToken) ||
                                     !string.IsNullOrWhiteSpace(MusicUserToken);
@@ -42,9 +44,11 @@ public sealed class CredentialStore
         }
 
         string? cookieToken = null;
+        string? savedWebCookie = null;
         if (!string.IsNullOrWhiteSpace(webCookie))
         {
-            if (webCookie.Length > 16384 || webCookie.Contains('\r') || webCookie.Contains('\n'))
+            if (webCookie.Length > 16384 || Encoding.UTF8.GetByteCount(webCookie) > 16384 ||
+                webCookie.Contains('\r') || webCookie.Contains('\n'))
             {
                 throw new ArgumentException("The Apple Music cookie is too long or contains invalid line breaks.", nameof(webCookie));
             }
@@ -54,16 +58,24 @@ public sealed class CredentialStore
             {
                 throw new ArgumentException("The cookie header must contain media-user-token or music-user-token.", nameof(webCookie));
             }
+
+            savedWebCookie = NormalizeCookieHeader(webCookie);
         }
 
         var savedUserToken = normalizedUserToken ?? cookieToken ?? MusicUserToken;
+        if (savedWebCookie is not null)
+        {
+            WindowsDataProtection.Write(GetWebCookiePath(), savedWebCookie);
+        }
+
         if (!string.IsNullOrWhiteSpace(developerToken)) Write(DeveloperTokenName, developerToken);
         if (!string.IsNullOrWhiteSpace(savedUserToken))
         {
             Write(UserTokenName, savedUserToken);
         }
 
-        // Keep only the API's Music User Token; the full cookie header is discarded.
+        // REST API calls use the Music User Token header; retain the web session
+        // separately for the native playback adapter without sending cookies there.
         Write(CookieName, null);
     }
 
@@ -73,6 +85,8 @@ public sealed class CredentialStore
         {
             WindowsCredentialManager.Delete(GetTargetName(name));
         }
+
+        WindowsDataProtection.Delete(GetWebCookiePath());
     }
 
     private static string? Read(string name)
@@ -107,6 +121,32 @@ public sealed class CredentialStore
     }
 
     private static string GetTargetName(string name) => $"{Resource}/{name}";
+
+    private static string GetWebCookiePath() => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "AMNative",
+        "credentials",
+        "apple-music-web-cookie.bin");
+
+    private static string? ReadWebCookie()
+    {
+        try
+        {
+            return WindowsDataProtection.Read(GetWebCookiePath());
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string NormalizeCookieHeader(string cookie)
+    {
+        var value = cookie.Trim();
+        return value.StartsWith("Cookie:", StringComparison.OrdinalIgnoreCase)
+            ? value[7..].Trim()
+            : value;
+    }
 
     private static string? NormalizeUserToken(string? value)
     {
@@ -295,6 +335,177 @@ public sealed class CredentialStore
             public IntPtr Attributes;
             [MarshalAs(UnmanagedType.LPWStr)] public string? TargetAlias;
             [MarshalAs(UnmanagedType.LPWStr)] public string? UserName;
+        }
+    }
+
+    private static class WindowsDataProtection
+    {
+        private const uint UiForbidden = 0x1;
+        private const int MaximumProtectedFileSize = 64 * 1024;
+        private static readonly object Sync = new();
+
+        public static string? Read(string path)
+        {
+            lock (Sync)
+            {
+                if (!File.Exists(path))
+                {
+                    return null;
+                }
+
+                var storedLength = new FileInfo(path).Length;
+                if (storedLength <= 0 || storedLength > MaximumProtectedFileSize)
+                {
+                    throw new InvalidDataException("The saved Apple Music web cookie file has an invalid size.");
+                }
+
+                var protectedBytes = File.ReadAllBytes(path);
+                try
+                {
+                    if (protectedBytes.Length == 0 || protectedBytes.Length > MaximumProtectedFileSize)
+                    {
+                        throw new InvalidDataException("The saved Apple Music web cookie file has an invalid size.");
+                    }
+
+                    var plainBytes = Transform(protectedBytes, protect: false);
+                    try
+                    {
+                        return Encoding.UTF8.GetString(plainBytes);
+                    }
+                    finally
+                    {
+                        CryptographicOperations.ZeroMemory(plainBytes);
+                    }
+                }
+                finally
+                {
+                    CryptographicOperations.ZeroMemory(protectedBytes);
+                }
+            }
+        }
+
+        public static void Write(string path, string value)
+        {
+            lock (Sync)
+            {
+                var directory = Path.GetDirectoryName(path)
+                    ?? throw new InvalidOperationException("The web cookie storage path is invalid.");
+                Directory.CreateDirectory(directory);
+
+                var plainBytes = Encoding.UTF8.GetBytes(value);
+                byte[]? protectedBytes = null;
+                var temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                try
+                {
+                    protectedBytes = Transform(plainBytes, protect: true);
+                    if (protectedBytes.Length > MaximumProtectedFileSize)
+                    {
+                        throw new InvalidOperationException("The encrypted Apple Music web cookie exceeds the local storage limit.");
+                    }
+
+                    File.WriteAllBytes(temporaryPath, protectedBytes);
+                    File.Move(temporaryPath, path, overwrite: true);
+                }
+                finally
+                {
+                    CryptographicOperations.ZeroMemory(plainBytes);
+                    if (protectedBytes is not null)
+                    {
+                        CryptographicOperations.ZeroMemory(protectedBytes);
+                    }
+
+                    if (File.Exists(temporaryPath))
+                    {
+                        File.Delete(temporaryPath);
+                    }
+                }
+            }
+        }
+
+        public static void Delete(string path)
+        {
+            lock (Sync)
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+        }
+
+        private static byte[] Transform(byte[] value, bool protect)
+        {
+            var input = new DataBlob
+            {
+                Size = checked((uint)value.Length),
+                Data = Marshal.AllocHGlobal(value.Length)
+            };
+            DataBlob output = default;
+            try
+            {
+                Marshal.Copy(value, 0, input.Data, value.Length);
+                var succeeded = protect
+                    ? CryptProtectData(ref input, "AM Native Apple Music web session", IntPtr.Zero, IntPtr.Zero,
+                        IntPtr.Zero, UiForbidden, out output)
+                    : CryptUnprotectData(ref input, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero,
+                        IntPtr.Zero, UiForbidden, out output);
+                if (!succeeded)
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+
+                if (output.Size == 0 || output.Size > MaximumProtectedFileSize || output.Data == IntPtr.Zero)
+                {
+                    throw new InvalidDataException("Windows returned an invalid protected Apple Music web cookie.");
+                }
+
+                var result = new byte[checked((int)output.Size)];
+                Marshal.Copy(output.Data, result, 0, result.Length);
+                return result;
+            }
+            finally
+            {
+                if (input.Data != IntPtr.Zero)
+                {
+                    for (var index = 0; index < value.Length; index++)
+                    {
+                        Marshal.WriteByte(input.Data, index, 0);
+                    }
+
+                    Marshal.FreeHGlobal(input.Data);
+                }
+
+                if (output.Data != IntPtr.Zero)
+                {
+                    var clearLength = checked((int)Math.Min(output.Size, (uint)MaximumProtectedFileSize));
+                    for (var index = 0; index < clearLength; index++)
+                    {
+                        Marshal.WriteByte(output.Data, index, 0);
+                    }
+
+                    LocalFree(output.Data);
+                }
+            }
+        }
+
+        [DllImport("crypt32.dll", EntryPoint = "CryptProtectData", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CryptProtectData(ref DataBlob input, string description, IntPtr optionalEntropy,
+            IntPtr reserved, IntPtr prompt, uint flags, out DataBlob output);
+
+        [DllImport("crypt32.dll", EntryPoint = "CryptUnprotectData", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CryptUnprotectData(ref DataBlob input, IntPtr description, IntPtr optionalEntropy,
+            IntPtr reserved, IntPtr prompt, uint flags, out DataBlob output);
+
+        [DllImport("kernel32.dll", EntryPoint = "LocalFree")]
+        private static extern IntPtr LocalFree(IntPtr memory);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DataBlob
+        {
+            public uint Size;
+            public IntPtr Data;
         }
     }
 }

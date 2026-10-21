@@ -27,7 +27,7 @@ public sealed partial class SettingsPage : Page
             DeveloperTokenBox.Password = "";
             UserTokenBox.Password = "";
             CookieBox.Password = "";
-            StatusText.Text = "Any entered credentials were saved to Windows Credential Manager. Blank fields kept their saved values.";
+            StatusText.Text = "Credentials were saved securely. A supplied web cookie is protected with Windows DPAPI. Blank fields kept their saved values.";
         }
         catch (ArgumentException exception)
         {
@@ -35,7 +35,7 @@ public sealed partial class SettingsPage : Page
         }
         catch
         {
-            StatusText.Text = "Windows Credential Manager could not save the credentials. Check that it is available for this Windows account.";
+            StatusText.Text = "Windows could not securely save the credentials. Check that Credential Manager and local app data are available for this account.";
         }
     }
 
@@ -71,14 +71,16 @@ public sealed partial class SettingsPage : Page
         }
         catch
         {
-            StatusText.Text = "Windows Credential Manager could not remove the saved credentials.";
+            StatusText.Text = "Windows could not remove the saved credentials.";
         }
     }
 
     private void UpdateStatus()
     {
         StatusText.Text = App.Credentials.HasAnyCredential
-            ? "Apple Music credentials are saved securely. Enter replacements below to update them."
+            ? App.Credentials.HasWebCookie
+                ? "Apple Music credentials are saved securely. The web cookie is protected with Windows DPAPI."
+                : "Apple Music credentials are saved securely in Windows Credential Manager."
             : "Credentials have not been saved.";
     }
 }
