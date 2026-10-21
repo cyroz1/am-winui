@@ -559,5 +559,6 @@ public sealed partial class SearchPage : Page
     }
 
     private static bool HasRelatedItems(MusicResource item) => item.Type is
-        "albums" or "album" or "artists" or "artist" or "playlists" or "playlist" or "songs" or "song";
+        "albums" or "album" or "artists" or "artist" or "playlists" or "playlist" or "songs" or "song" or
+        "music-videos" or "music-video";
 }

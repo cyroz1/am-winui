@@ -15,6 +15,7 @@ public sealed partial class ResourcePage : Page
     private ArtistView _artistView;
     private AlbumView _albumView;
     private SongView _songView;
+    private MusicVideoView _musicVideoView;
     private bool _loading;
     private bool _addingToLibrary;
     private bool _addingToFavorites;
@@ -48,6 +49,7 @@ public sealed partial class ResourcePage : Page
         _artistView = ArtistView.Albums;
         _albumView = AlbumView.Tracks;
         _songView = SongView.Albums;
+        _musicVideoView = MusicVideoView.Albums;
         ArtistViewsBox.SelectedItem = ArtistViewsBox.Items
             .OfType<ComboBoxItem>()
             .FirstOrDefault(item => string.Equals(item.Tag as string, GetArtistViewKey(_artistView), StringComparison.Ordinal));
@@ -57,6 +59,9 @@ public sealed partial class ResourcePage : Page
         SongViewsBox.SelectedItem = SongViewsBox.Items
             .OfType<ComboBoxItem>()
             .FirstOrDefault(item => string.Equals(item.Tag as string, GetSongViewKey(_songView), StringComparison.Ordinal));
+        MusicVideoViewsBox.SelectedItem = MusicVideoViewsBox.Items
+            .OfType<ComboBoxItem>()
+            .FirstOrDefault(item => string.Equals(item.Tag as string, GetMusicVideoViewKey(_musicVideoView), StringComparison.Ordinal));
         _related.Clear();
         UpdateActions();
 
@@ -64,7 +69,7 @@ public sealed partial class ResourcePage : Page
         {
             TitleText.Text = "Apple Music item";
             SubtitleText.Text = "No item was selected.";
-            StatusText.Text = "Return to the previous page and choose an album, artist, or playlist.";
+            StatusText.Text = "Return to the previous page and choose an album, artist, playlist, song, or music video.";
             return;
         }
 
@@ -100,6 +105,8 @@ public sealed partial class ResourcePage : Page
                     ? $"Loading {GetAlbumViewLabel(_albumView)}…"
                     : IsSongResource(resource)
                         ? $"Loading {GetSongViewLabel(_songView)}…"
+                    : IsMusicVideoResource(resource)
+                        ? $"Loading {GetMusicVideoViewLabel(_musicVideoView)}…"
                     : IsArtist(resource) ? "Loading albums…" : "Loading tracks…";
         try
         {
@@ -111,6 +118,8 @@ public sealed partial class ResourcePage : Page
                         ? await GetAlbumViewPageAsync(resource)
                     : IsSongResource(resource)
                         ? await GetSongViewPageAsync(resource)
+                    : IsMusicVideoResource(resource)
+                        ? await GetMusicVideoViewPageAsync(resource)
                         : await App.MusicApi.GetRelatedResourcesPageAsync(resource);
             if (!ReferenceEquals(_resource, resource))
             {
@@ -138,6 +147,8 @@ public sealed partial class ResourcePage : Page
                         ? $"No {GetAlbumViewLabel(_albumView)} were returned for this album."
                     : IsSongResource(resource)
                         ? $"No {GetSongViewLabel(_songView)} were returned for this song."
+                    : IsMusicVideoResource(resource)
+                        ? $"No {GetMusicVideoViewLabel(_musicVideoView)} were returned for this music video."
                         : IsArtist(resource) ? "No albums were returned for this artist." : "No tracks were returned for this item."
                 : IsCatalogArtist(resource)
                     ? $"{_related.Count} {GetArtistViewLabel(_artistView)}"
@@ -145,6 +156,8 @@ public sealed partial class ResourcePage : Page
                         ? $"{_related.Count} {GetAlbumViewLabel(_albumView)}"
                     : IsSongResource(resource)
                         ? $"{_related.Count} {GetSongViewLabel(_songView)}"
+                    : IsMusicVideoResource(resource)
+                        ? $"{_related.Count} {GetMusicVideoViewLabel(_musicVideoView)}"
                         : IsArtist(resource) ? $"{_related.Count} albums" : $"{_related.Count} tracks";
         }
         catch (Exception exception)
@@ -185,6 +198,12 @@ public sealed partial class ResourcePage : Page
 
     private Task<IReadOnlyList<MusicResource>> GetSongViewItemsAsync(MusicResource song) =>
         App.MusicApi.GetSongRelationshipAsync(song, GetSongViewKey(_songView));
+
+    private Task<MusicResourcePage> GetMusicVideoViewPageAsync(MusicResource musicVideo) =>
+        App.MusicApi.GetMusicVideoRelationshipPageAsync(musicVideo, GetMusicVideoViewKey(_musicVideoView));
+
+    private Task<IReadOnlyList<MusicResource>> GetMusicVideoViewItemsAsync(MusicResource musicVideo) =>
+        App.MusicApi.GetMusicVideoRelationshipAsync(musicVideo, GetMusicVideoViewKey(_musicVideoView));
 
     private static string GetArtistViewLabel(ArtistView view) => view switch
     {
@@ -287,6 +306,14 @@ public sealed partial class ResourcePage : Page
     private static bool IsLibrarySongWithCatalogId(MusicResource? resource) =>
         resource is { Type: "library-songs" } song && !string.IsNullOrWhiteSpace(song.CatalogId);
 
+    private static bool IsMusicVideoResource(MusicResource? resource) => resource?.Type is
+        "music-videos" or "music-video" or "library-music-videos";
+
+    private static bool IsCatalogMusicVideo(MusicResource? resource) => resource?.Type is "music-videos" or "music-video";
+
+    private static bool IsLibraryMusicVideoWithCatalogId(MusicResource? resource) =>
+        resource is { Type: "library-music-videos" } musicVideo && !string.IsNullOrWhiteSpace(musicVideo.CatalogId);
+
     private static string GetSongViewLabel(SongView view) => view switch
     {
         SongView.Artists => "artists",
@@ -314,6 +341,35 @@ public sealed partial class ResourcePage : Page
         "catalog" => SongView.Catalog,
         _ => null
     };
+
+    private static string GetMusicVideoViewLabel(MusicVideoView view) => view switch
+    {
+        MusicVideoView.Artists => "artists",
+        MusicVideoView.Songs => "songs",
+        MusicVideoView.Catalog => "catalog video",
+        _ => "albums"
+    };
+
+    private static string GetMusicVideoViewKey(MusicVideoView view) => view switch
+    {
+        MusicVideoView.Artists => "artists",
+        MusicVideoView.Songs => "songs",
+        MusicVideoView.Catalog => "catalog",
+        _ => "albums"
+    };
+
+    private static MusicVideoView? GetMusicVideoView(string key) => key switch
+    {
+        "albums" => MusicVideoView.Albums,
+        "artists" => MusicVideoView.Artists,
+        "songs" => MusicVideoView.Songs,
+        "catalog" => MusicVideoView.Catalog,
+        _ => null
+    };
+
+    private bool IsMusicVideoPlayableView(MusicResource? resource) => IsMusicVideoResource(resource) &&
+        (_musicVideoView == MusicVideoView.Songs ||
+         (IsLibraryMusicVideoWithCatalogId(resource) && _musicVideoView == MusicVideoView.Catalog));
 
     private bool IsSongVideoView(MusicResource? resource) =>
         IsCatalogSong(resource) && _songView == SongView.MusicVideos;
@@ -350,6 +406,14 @@ public sealed partial class ResourcePage : Page
         if (SongViewsBox.SelectedItem is ComboBoxItem { Tag: string key } && GetSongView(key) is SongView view)
         {
             await SetSongViewAsync(view);
+        }
+    }
+
+    private async void OnMusicVideoViewSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (MusicVideoViewsBox.SelectedItem is ComboBoxItem { Tag: string key } && GetMusicVideoView(key) is MusicVideoView view)
+        {
+            await SetMusicVideoViewAsync(view);
         }
     }
 
@@ -398,6 +462,30 @@ public sealed partial class ResourcePage : Page
 
         var resource = _resource;
         _songView = view;
+        _nextPage = null;
+        _selected = null;
+        RelatedList.SelectedItems.Clear();
+        _related.Clear();
+        ActionStatus.Text = "";
+        UpdateActions();
+        await LoadRelatedPageAsync(resource, append: false);
+    }
+
+    private async Task SetMusicVideoViewAsync(MusicVideoView view)
+    {
+        if (_loading || _resource is null || !IsMusicVideoResource(_resource) || _musicVideoView == view)
+        {
+            return;
+        }
+
+        if ((view == MusicVideoView.Songs && !IsCatalogMusicVideo(_resource)) ||
+            (view == MusicVideoView.Catalog && !IsLibraryMusicVideoWithCatalogId(_resource)))
+        {
+            return;
+        }
+
+        var resource = _resource;
+        _musicVideoView = view;
         _nextPage = null;
         _selected = null;
         RelatedList.SelectedItems.Clear();
@@ -490,6 +578,10 @@ public sealed partial class ResourcePage : Page
             {
                 items = await GetSongViewItemsAsync(resource);
             }
+            else if (IsMusicVideoResource(resource))
+            {
+                items = await GetMusicVideoViewItemsAsync(resource);
+            }
             else
             {
                 items = await App.MusicApi.GetRelatedResourcesAsync(resource);
@@ -511,6 +603,8 @@ public sealed partial class ResourcePage : Page
                             ? "Playing available music video previews from this album."
                         : IsSongVideoView(resource)
                             ? "Playing available music video previews from this song."
+                        : IsMusicVideoResource(resource)
+                            ? $"Playing the selected item from the music video’s {GetMusicVideoViewLabel(_musicVideoView)}."
                             : IsLibrarySongWithCatalogId(resource) && _songView == SongView.Catalog
                                 ? "Playing the catalog song preview."
                                 : "Playing the selected preview and following tracks.";
@@ -529,31 +623,34 @@ public sealed partial class ResourcePage : Page
 
     private async void OnPlayParentClicked(object sender, RoutedEventArgs e)
     {
-        if (_resource is null || !IsSongResource(_resource) || !_resource.CanPlayPreview || _loading)
+        if (_resource is null || !(IsSongResource(_resource) || IsMusicVideoResource(_resource)) || !_resource.CanPlayPreview || _loading)
         {
             return;
         }
 
-        var song = _resource;
+        var previewResource = _resource;
+        var isMusicVideo = IsMusicVideoResource(previewResource);
         _loading = true;
         UpdateActions();
-        ActionStatus.Text = "Resolving song preview…";
+        ActionStatus.Text = isMusicVideo ? "Resolving music video preview…" : "Resolving song preview…";
         try
         {
-            var items = await App.MusicApi.ResolvePreviewsForPlaybackAsync(new[] { song });
-            if (!ReferenceEquals(_resource, song))
+            var items = await App.MusicApi.ResolvePreviewsForPlaybackAsync(new[] { previewResource });
+            if (!ReferenceEquals(_resource, previewResource))
             {
                 return;
             }
 
             if (items.Count == 0)
             {
-                ActionStatus.Text = "Apple Music did not provide a preview for this song.";
+                ActionStatus.Text = isMusicVideo
+                    ? "Apple Music did not provide a preview for this music video."
+                    : "Apple Music did not provide a preview for this song.";
                 return;
             }
 
             await App.Player.PlayQueueAsync(items, items[0]);
-            ActionStatus.Text = "Playing the song preview.";
+            ActionStatus.Text = isMusicVideo ? "Playing the music video preview." : "Playing the song preview.";
         }
         catch (Exception exception)
         {
@@ -611,12 +708,15 @@ public sealed partial class ResourcePage : Page
             var artistView = IsCatalogArtist(resource) && IsArtistViewPlayable(_artistView);
             var albumVideoView = IsAlbumVideoView(resource);
             var songVideoView = IsSongVideoView(resource);
+            var musicVideoView = IsMusicVideoPlayableView(resource);
             var items = artistView
                 ? await GetArtistViewItemsAsync(resource)
                 : albumVideoView
                     ? await GetAlbumViewItemsAsync(resource)
                     : songVideoView
                         ? await GetSongViewItemsAsync(resource)
+                    : musicVideoView
+                        ? await GetMusicVideoViewItemsAsync(resource)
                     : await App.MusicApi.GetRelatedResourcesAsync(resource);
             if (!ReferenceEquals(_resource, resource))
             {
@@ -630,6 +730,8 @@ public sealed partial class ResourcePage : Page
                     ? "Playing available music video previews from this album."
                     : songVideoView
                         ? "Playing available music video previews from this song."
+                    : musicVideoView
+                        ? $"Playing available previews from the music video’s {GetMusicVideoViewLabel(_musicVideoView)}."
                         : "Playing available previews in this collection.";
         }
         catch (Exception exception)
@@ -738,10 +840,17 @@ public sealed partial class ResourcePage : Page
         SongMusicVideosItem.Visibility = IsCatalogSong(_resource) ? Visibility.Visible : Visibility.Collapsed;
         SongStationItem.Visibility = IsCatalogSong(_resource) ? Visibility.Visible : Visibility.Collapsed;
         SongCatalogItem.Visibility = IsLibrarySongWithCatalogId(_resource) ? Visibility.Visible : Visibility.Collapsed;
+        MusicVideoViewSelector.Visibility = IsMusicVideoResource(_resource) ? Visibility.Visible : Visibility.Collapsed;
+        MusicVideoViewsBox.IsEnabled = !_loading;
+        MusicVideoSongsItem.Visibility = IsCatalogMusicVideo(_resource) ? Visibility.Visible : Visibility.Collapsed;
+        MusicVideoCatalogItem.Visibility = IsLibraryMusicVideoWithCatalogId(_resource) ? Visibility.Visible : Visibility.Collapsed;
         LoadMoreButton.Visibility = _nextPage is null ? Visibility.Collapsed : Visibility.Visible;
         LoadMoreButton.IsEnabled = !_loading && _nextPage is not null;
         OpenButton.IsEnabled = !_loading && _selected is not null && HasRelatedItems(_selected);
-        PlayParentButton.Visibility = IsSongResource(_resource) ? Visibility.Visible : Visibility.Collapsed;
+        PlayParentButton.Visibility = IsSongResource(_resource) || IsMusicVideoResource(_resource)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        PlayParentButton.Content = IsMusicVideoResource(_resource) ? "Play video preview" : "Play song preview";
         PlayParentButton.IsEnabled = !_loading && _resource?.CanPlayPreview == true;
         PlayAllButton.Content = GetPlayAllLabel();
         PlayAllButton.IsEnabled = !_loading && _related.Count > 0 && CanPlayAllFromCurrentView();
@@ -786,17 +895,22 @@ public sealed partial class ResourcePage : Page
     private bool CanPlayAllFromCurrentView() => IsPlaylistCollection(_resource) ||
         (IsAlbumCollection(_resource) && (_albumView is AlbumView.Tracks or AlbumView.RelatedVideos)) ||
         (IsCatalogArtist(_resource) && IsArtistViewPlayable(_artistView)) ||
-        IsSongVideoView(_resource);
+        IsSongVideoView(_resource) || IsMusicVideoPlayableView(_resource);
 
     private string GetPlayAllLabel() => IsCatalogArtist(_resource)
         ? GetArtistViewPlayAllLabel(_artistView)
         : IsAlbumVideoView(_resource) || IsSongVideoView(_resource)
             ? "Play all music video previews"
+        : IsMusicVideoPlayableView(_resource) && _musicVideoView == MusicVideoView.Songs
+            ? "Play all related song previews"
+        : IsMusicVideoPlayableView(_resource)
+            ? "Play music video preview"
             : "Play all previews";
 
     private static bool HasRelatedItems(MusicResource resource) => resource.Type is
         "albums" or "album" or "library-albums" or "artists" or "artist" or "library-artists" or
-        "playlists" or "playlist" or "library-playlists" or "songs" or "song" or "library-songs";
+        "playlists" or "playlist" or "library-playlists" or "songs" or "song" or "library-songs" or
+        "music-videos" or "music-video" or "library-music-videos";
 
     private static string GetArtistViewPlayAllLabel(ArtistView view) => view switch
     {
@@ -838,6 +952,14 @@ public sealed partial class ResourcePage : Page
         Artists,
         MusicVideos,
         Station,
+        Catalog
+    }
+
+    private enum MusicVideoView
+    {
+        Albums,
+        Artists,
+        Songs,
         Catalog
     }
 }

@@ -575,6 +575,24 @@ public sealed class AppleMusicApiClient
         return await GetAllPagesAsync(endpoint, cancellationToken);
     }
 
+    public async Task<MusicResourcePage> GetMusicVideoRelationshipPageAsync(
+        MusicResource musicVideo,
+        string relationship,
+        CancellationToken cancellationToken = default)
+    {
+        var endpoint = await GetMusicVideoRelationshipEndpointAsync(musicVideo, relationship, cancellationToken);
+        return await GetApiResourcePageAsync(new Uri(ApiRoot, endpoint), cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MusicResource>> GetMusicVideoRelationshipAsync(
+        MusicResource musicVideo,
+        string relationship,
+        CancellationToken cancellationToken = default)
+    {
+        var endpoint = await GetMusicVideoRelationshipEndpointAsync(musicVideo, relationship, cancellationToken);
+        return await GetAllPagesAsync(endpoint, cancellationToken);
+    }
+
     private async Task<MusicResourcePage> GetArtistViewPageAsync(MusicResource artist, string view, CancellationToken cancellationToken)
     {
         var endpoint = await GetArtistViewEndpointAsync(artist, view, cancellationToken);
@@ -653,6 +671,36 @@ public sealed class AppleMusicApiClient
 
             default:
                 throw new InvalidOperationException("Song relationships are available for catalog songs and library songs.");
+        }
+    }
+
+    private async Task<string> GetMusicVideoRelationshipEndpointAsync(
+        MusicResource musicVideo,
+        string relationship,
+        CancellationToken cancellationToken)
+    {
+        var id = Uri.EscapeDataString(musicVideo.Id);
+        switch (musicVideo.Type)
+        {
+            case "music-videos":
+            case "music-video":
+                if (relationship is not ("albums" or "artists" or "songs"))
+                {
+                    throw new ArgumentOutOfRangeException(nameof(relationship), "Apple Music does not document this catalog music video relationship.");
+                }
+
+                return $"catalog/{await ResolveStorefrontAsync(cancellationToken)}/music-videos/{id}/{relationship}";
+
+            case "library-music-videos":
+                if (relationship is not ("albums" or "artists" or "catalog"))
+                {
+                    throw new ArgumentOutOfRangeException(nameof(relationship), "Apple Music does not document this library music video relationship.");
+                }
+
+                return $"me/library/music-videos/{id}/{relationship}";
+
+            default:
+                throw new InvalidOperationException("Music video relationships are available for catalog and library music videos.");
         }
     }
 

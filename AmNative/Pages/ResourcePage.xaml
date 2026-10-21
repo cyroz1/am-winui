@@ -67,6 +67,19 @@
                 <ComboBoxItem x:Name="SongCatalogItem" Content="Catalog song" Tag="catalog" />
             </ComboBox>
         </StackPanel>
+        <StackPanel x:Name="MusicVideoViewSelector" Grid.Row="2" Orientation="Horizontal" Spacing="10" Visibility="Collapsed">
+            <TextBlock Text="Browse" VerticalAlignment="Center" Opacity="0.72" />
+            <ComboBox
+                x:Name="MusicVideoViewsBox"
+                MinWidth="260"
+                AutomationProperties.Name="Browse music video relationships"
+                SelectionChanged="OnMusicVideoViewSelectionChanged">
+                <ComboBoxItem Content="Albums" Tag="albums" />
+                <ComboBoxItem Content="Artists" Tag="artists" />
+                <ComboBoxItem x:Name="MusicVideoSongsItem" Content="Songs" Tag="songs" />
+                <ComboBoxItem x:Name="MusicVideoCatalogItem" Content="Catalog video" Tag="catalog" />
+            </ComboBox>
+        </StackPanel>
         <ListView
             x:Name="RelatedList"
             Grid.Row="3"
