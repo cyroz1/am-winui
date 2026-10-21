@@ -304,6 +304,11 @@ public sealed class AppleMusicApiClient
         return resolved[0];
     }
 
+    public Task<IReadOnlyList<MusicResource>> ResolvePreviewsForPlaybackAsync(
+        IEnumerable<MusicResource> resources,
+        CancellationToken cancellationToken = default) =>
+        ResolvePreviewsAsync(resources.ToArray(), cancellationToken);
+
     private async Task<IReadOnlyList<MusicResource>> ResolvePreviewsAsync(
         IReadOnlyList<MusicResource> resources,
         CancellationToken cancellationToken)

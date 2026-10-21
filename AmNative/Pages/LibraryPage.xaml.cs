@@ -13,6 +13,7 @@ public sealed partial class LibraryPage : Page
     private MusicResource? _selected;
     private bool _loading;
     private bool _isSearching;
+    private bool _resolvingPlayback;
     private IReadOnlyList<MusicResource> SelectedPlaylistItems => LibraryList.SelectedItems
         .OfType<MusicResource>()
         .Where(static item => item.CanBeAddedToPlaylist)
@@ -214,20 +215,32 @@ public sealed partial class LibraryPage : Page
 
     private async void OnPlayClicked(object sender, RoutedEventArgs e)
     {
-        if (_selected is null)
+        var items = SelectedPlaylistItems.Where(static item => item.CanPlayPreview).ToArray();
+        if (items.Length == 0 || _resolvingPlayback)
         {
             return;
         }
 
+        var startAt = _selected;
+        _resolvingPlayback = true;
+        UpdateActions();
+        ActionStatus.Text = "Resolving preview audio…";
         try
         {
-            var playableItem = await App.MusicApi.ResolvePreviewAsync(_selected);
-            await App.Player.PlayPreviewAsync(playableItem);
-            ActionStatus.Text = "Playing the available preview.";
+            var playableItems = await App.MusicApi.ResolvePreviewsForPlaybackAsync(items);
+            await App.Player.PlayQueueAsync(playableItems, startAt);
+            ActionStatus.Text = playableItems.Count > 1
+                ? "Playing available previews from the selection."
+                : "Playing the available preview.";
         }
         catch (Exception exception)
         {
             ActionStatus.Text = exception.Message;
+        }
+        finally
+        {
+            _resolvingPlayback = false;
+            UpdateActions();
         }
     }
 
@@ -288,7 +301,9 @@ public sealed partial class LibraryPage : Page
     {
         var selected = _selected;
         OpenButton.IsEnabled = _selected is not null && HasRelatedItems(_selected);
-        PlayButton.IsEnabled = _selected?.CanPlayPreview == true;
+        var playableCount = SelectedPlaylistItems.Count(static item => item.CanPlayPreview);
+        PlayButton.Content = playableCount > 1 ? $"Play {playableCount} previews" : "Play preview";
+        PlayButton.IsEnabled = !_loading && !_resolvingPlayback && playableCount > 0;
         var playlistItemCount = SelectedPlaylistItems.Count;
         AddButton.Content = playlistItemCount > 1
             ? $"Add {playlistItemCount} items to playlist"

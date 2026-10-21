@@ -206,23 +206,30 @@ public sealed partial class ResourcePage : Page
 
         var resource = _resource;
         var selected = _selected;
+        var selectedItems = SelectedPlaylistItems;
+        var queueSelection = selectedItems.Count > 1;
         _loading = true;
         RelatedList.IsEnabled = false;
         UpdateActions();
         try
         {
-            var items = _showArtistTopSongs
-                ? await App.MusicApi.GetArtistTopSongsAsync(resource)
-                : await App.MusicApi.GetRelatedResourcesAsync(resource);
+            var items = queueSelection
+                ? await App.MusicApi.ResolvePreviewsForPlaybackAsync(
+                    selectedItems.Where(static item => item.CanPlayPreview))
+                : _showArtistTopSongs
+                    ? await App.MusicApi.GetArtistTopSongsAsync(resource)
+                    : await App.MusicApi.GetRelatedResourcesAsync(resource);
             if (!ReferenceEquals(_resource, resource))
             {
                 return;
             }
 
             await App.Player.PlayQueueAsync(items, selected);
-            ActionStatus.Text = _showArtistTopSongs
-                ? "Playing available top song previews from the selected track."
-                : "Playing the selected preview and following tracks.";
+            ActionStatus.Text = queueSelection
+                ? "Playing available previews from the selection."
+                : _showArtistTopSongs
+                    ? "Playing available top song previews from the selected track."
+                    : "Playing the selected preview and following tracks.";
         }
         catch (Exception exception)
         {
@@ -345,7 +352,13 @@ public sealed partial class ResourcePage : Page
         OpenButton.IsEnabled = !_loading && _selected is not null && HasRelatedItems(_selected);
         PlayAllButton.Content = _showArtistTopSongs ? "Play all top songs" : "Play all previews";
         PlayAllButton.IsEnabled = !_loading && _related.Count > 0 && (IsTrackCollection(_resource) || _showArtistTopSongs);
-        PlayButton.IsEnabled = !_loading && _selected?.CanPlayPreview == true;
+        var selectedItemCount = SelectedPlaylistItems.Count;
+        var playableCount = SelectedPlaylistItems.Count(static item => item.CanPlayPreview);
+        var previewLabel = playableCount == 1 ? "preview" : "previews";
+        PlayButton.Content = selectedItemCount > 1
+            ? playableCount > 0 ? $"Play {playableCount} selected {previewLabel}" : "No selected previews"
+            : "Play from here";
+        PlayButton.IsEnabled = !_loading && playableCount > 0;
         AddButton.IsEnabled = !_loading && _selected is not null && !IsLibraryResource(_selected) && IsAddable(_selected);
         var playlistItemCount = SelectedPlaylistItems.Count;
         PlaylistButton.Content = playlistItemCount > 1
