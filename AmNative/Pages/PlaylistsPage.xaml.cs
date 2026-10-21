@@ -99,6 +99,7 @@ public sealed partial class PlaylistsPage : Page
     private async void OnCreateClicked(object sender, RoutedEventArgs e)
     {
         var name = PlaylistNameBox.Text.Trim();
+        var description = PlaylistDescriptionBox.Text.Trim();
         if (name.Length == 0)
         {
             StatusText.Text = "Enter a playlist name first.";
@@ -114,8 +115,9 @@ public sealed partial class PlaylistsPage : Page
         UpdateCommandState();
         try
         {
-            var playlist = await App.MusicApi.CreatePlaylistAsync(name, parentFolderId: CurrentFolderId);
+            var playlist = await App.MusicApi.CreatePlaylistAsync(name, description, parentFolderId: CurrentFolderId);
             PlaylistNameBox.Text = "";
+            PlaylistDescriptionBox.Text = "";
             StatusText.Text = playlist is null ? "Playlist created." : $"Created “{playlist.Name}”.";
             await LoadAsync();
         }
@@ -150,6 +152,7 @@ public sealed partial class PlaylistsPage : Page
         {
             await App.MusicApi.CreatePlaylistFolderAsync(name, CurrentFolderId);
             PlaylistNameBox.Text = "";
+            PlaylistDescriptionBox.Text = "";
             StatusText.Text = $"Created folder “{name}”.";
             await LoadAsync();
         }
