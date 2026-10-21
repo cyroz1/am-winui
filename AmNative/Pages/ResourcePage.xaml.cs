@@ -452,8 +452,7 @@ public sealed partial class ResourcePage : Page
             ArtistView.TopMusicVideos => "Play all music video previews",
             _ => "Play all previews"
         };
-        var hasPlayableItems = _related.Any(static item => item.CanPlayPreview);
-        PlayAllButton.IsEnabled = !_loading && hasPlayableItems &&
+        PlayAllButton.IsEnabled = !_loading && _related.Count > 0 &&
                                   (IsTrackCollection(_resource) || _artistView is ArtistView.TopSongs or ArtistView.TopMusicVideos);
         var selectedItemCount = SelectedPlaylistItems.Count;
         var playableCount = SelectedPlaylistItems.Count(static item => item.CanPlayPreview);
