@@ -15,6 +15,14 @@ public sealed partial class PlaylistsPage : Page
     private MusicResource? _selectedPlaylist;
     private MusicResource? _selectedTrack;
     private IReadOnlyList<MusicResource> _pendingItems = Array.Empty<MusicResource>();
+    private IReadOnlyList<MusicResource> SelectedPlaylistItems => TracksList.SelectedItems
+        .OfType<MusicResource>()
+        .Where(static item => item.CanBeAddedToPlaylist)
+        .DistinctBy(static item => (item.Type, item.Id))
+        .ToArray();
+    private IReadOnlyList<MusicResource> SelectedPlayableItems => SelectedPlaylistItems
+        .Where(static item => item.CanPlayPreview)
+        .ToArray();
     private Uri? _nextFolderPage;
     private Uri? _nextTrackPage;
     private bool _loading;
@@ -190,6 +198,7 @@ public sealed partial class PlaylistsPage : Page
         _selectedTrack = null;
         _nextFolderPage = null;
         _nextTrackPage = null;
+        TracksList.SelectedItems.Clear();
         _tracks.Clear();
         TracksHeading.Text = "Tracks";
         UpdateSelection();
@@ -210,6 +219,7 @@ public sealed partial class PlaylistsPage : Page
             _selectedTrack = null;
             _nextFolderPage = null;
             _nextTrackPage = null;
+            TracksList.SelectedItems.Clear();
             _tracks.Clear();
             TracksHeading.Text = "Tracks";
             _folderStack.Add(clickedItem);
@@ -227,6 +237,7 @@ public sealed partial class PlaylistsPage : Page
         _selectedPlaylist = clickedItem;
         _selectedTrack = null;
         _nextTrackPage = null;
+        TracksList.SelectedItems.Clear();
         _tracks.Clear();
         UpdateSelection();
 
@@ -240,9 +251,10 @@ public sealed partial class PlaylistsPage : Page
         await LoadPlaylistTracksAsync(selectedPlaylist, append: false);
     }
 
-    private void OnTrackClicked(object sender, ItemClickEventArgs e)
+    private void OnTrackSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        _selectedTrack = e.ClickedItem as MusicResource;
+        _selectedTrack = e.AddedItems.OfType<MusicResource>().LastOrDefault()
+            ?? TracksList.SelectedItems.OfType<MusicResource>().LastOrDefault();
         UpdateSelection();
     }
 
@@ -278,6 +290,8 @@ public sealed partial class PlaylistsPage : Page
 
             if (!append)
             {
+                TracksList.SelectedItems.Clear();
+                _selectedTrack = null;
                 _tracks.Clear();
             }
 
@@ -306,8 +320,23 @@ public sealed partial class PlaylistsPage : Page
 
     private async void OnAddSongClicked(object sender, RoutedEventArgs e)
     {
-        if (_pendingItems.Count == 0 || _selectedPlaylist is null || !_selectedPlaylist.CanEdit ||
-            _loading || _loadingTracks || _mutating)
+        if (_loading || _loadingTracks || _mutating)
+        {
+            return;
+        }
+
+        if (_pendingItems.Count == 0)
+        {
+            var selectedItems = SelectedPlaylistItems;
+            if (selectedItems.Count > 0)
+            {
+                Frame.Navigate(typeof(PlaylistsPage), selectedItems.ToArray());
+            }
+
+            return;
+        }
+
+        if (_selectedPlaylist is null || !_selectedPlaylist.CanEdit)
         {
             return;
         }
@@ -348,7 +377,9 @@ public sealed partial class PlaylistsPage : Page
 
     private async void OnPlayTrackClicked(object sender, RoutedEventArgs e)
     {
-        if (_selectedTrack is null || _selectedPlaylist is null || _loading || _loadingTracks || _mutating)
+        var selectedItems = SelectedPlaylistItems;
+        if (_selectedTrack is null || _selectedPlaylist is null || selectedItems.Count == 0 ||
+            _loading || _loadingTracks || _mutating)
         {
             return;
         }
@@ -359,16 +390,35 @@ public sealed partial class PlaylistsPage : Page
         UpdateCommandState();
         try
         {
-            StatusText.Text = "Loading the playlist queue…";
-            var tracks = await App.MusicApi.GetPlaylistTracksAsync(selectedPlaylist.Id);
-            if (tracks.Count == 0)
+            if (selectedItems.Count > 1)
             {
-                StatusText.Text = "This playlist has no tracks to play.";
-                return;
-            }
+                StatusText.Text = "Resolving selected previews…";
+                var playableItems = await App.MusicApi.ResolvePreviewsForPlaybackAsync(
+                    selectedItems.Where(static item => item.CanPlayPreview));
+                if (playableItems.Count == 0)
+                {
+                    StatusText.Text = "The selected tracks have no playable previews.";
+                    return;
+                }
 
-            await App.Player.PlayQueueAsync(tracks, selectedTrack);
-            StatusText.Text = "Playing available previews from the selected track.";
+                await App.Player.PlayQueueAsync(playableItems, selectedTrack);
+                StatusText.Text = playableItems.Count == 1
+                    ? "Playing the selected preview."
+                    : $"Playing {playableItems.Count} selected previews.";
+            }
+            else
+            {
+                StatusText.Text = "Loading the playlist queue…";
+                var tracks = await App.MusicApi.GetPlaylistTracksAsync(selectedPlaylist.Id);
+                if (tracks.Count == 0)
+                {
+                    StatusText.Text = "This playlist has no tracks to play.";
+                    return;
+                }
+
+                await App.Player.PlayQueueAsync(tracks, selectedTrack);
+                StatusText.Text = "Playing available previews from the selected track.";
+            }
         }
         catch (Exception exception)
         {
@@ -384,18 +434,22 @@ public sealed partial class PlaylistsPage : Page
 
     private async void OnQueueTrackClicked(object sender, RoutedEventArgs e)
     {
-        if (_selectedTrack is null || !_selectedTrack.CanPlayPreview || _loading || _loadingTracks || _mutating)
+        var items = SelectedPlayableItems;
+        if (items.Count == 0 || _loading || _loadingTracks || _mutating)
         {
             return;
         }
 
-        var track = _selectedTrack;
         _loadingTracks = true;
         UpdateCommandState();
         try
         {
-            var count = await App.EnqueuePreviewsAsync(new[] { track });
-            StatusText.Text = count == 1 ? $"Added “{track.Name}” to the queue." : $"Added {count} previews to the queue.";
+            var count = await App.EnqueuePreviewsAsync(items);
+            StatusText.Text = count == 1
+                ? items.Count == 1
+                    ? $"Added “{items[0].Name}” to the queue."
+                    : "Added one preview to the queue."
+                : $"Added {count} previews to the queue.";
         }
         catch (Exception exception)
         {
@@ -411,9 +465,14 @@ public sealed partial class PlaylistsPage : Page
     private void UpdateSelection()
     {
         SelectedPlaylistText.Text = _selectedPlaylist is { CanEdit: false }
-            ? $"“{_selectedPlaylist.Name}” is read-only and can’t be changed."
+            && _pendingItems.Count > 0
+                ? $"“{_selectedPlaylist.Name}” is read-only and can’t be changed."
             : _pendingItems.Count == 0
-                ? "Choose tracks or videos in Home, Search, Library, or item details first."
+                ? SelectedPlaylistItems.Count == 0
+                    ? "Choose tracks or videos in Home, Search, Library, or item details first."
+                    : SelectedPlaylistItems.Count == 1
+                        ? $"Selected track: {SelectedPlaylistItems[0].Name}. Choose a destination playlist."
+                        : $"{SelectedPlaylistItems.Count} tracks selected. Choose a destination playlist."
                 : _pendingItems.Count == 1
                     ? $"Selected item: {_pendingItems[0].Name}"
                     : $"{_pendingItems.Count} items selected";
@@ -436,11 +495,16 @@ public sealed partial class PlaylistsPage : Page
         {
             1 => "Add selected item",
             > 1 => $"Add {_pendingItems.Count} selected items",
-            _ => "Add selected items"
+            _ => SelectedPlaylistItems.Count > 0 ? "Choose destination playlist" : "Add selected items"
         };
-        AddSongButton.IsEnabled = enabled && _pendingItems.Count > 0 && _selectedPlaylist is not null &&
-                                  _selectedPlaylist.CanEdit && _pendingItems.All(static item => item.CanBeAddedToPlaylist);
-        PlayTrackButton.IsEnabled = enabled && _selectedTrack?.CanPlayPreview == true;
-        QueueTrackButton.IsEnabled = enabled && _selectedTrack?.CanPlayPreview == true;
+        AddSongButton.IsEnabled = enabled && (_pendingItems.Count > 0
+            ? _selectedPlaylist is not null && _selectedPlaylist.CanEdit && _pendingItems.All(static item => item.CanBeAddedToPlaylist)
+            : SelectedPlaylistItems.Count > 0);
+        PlayTrackButton.Content = SelectedPlaylistItems.Count > 1 ? "Play selected previews" : "Play playlist from here";
+        PlayTrackButton.IsEnabled = enabled && SelectedPlaylistItems.Count > 0 && SelectedPlayableItems.Count > 0;
+        QueueTrackButton.Content = SelectedPlayableItems.Count > 1
+            ? $"Add {SelectedPlayableItems.Count} to queue"
+            : "Add to queue";
+        QueueTrackButton.IsEnabled = enabled && SelectedPlayableItems.Count > 0;
     }
 }

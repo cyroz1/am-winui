@@ -5,7 +5,7 @@
     <Grid Padding="32,28" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" RowSpacing="16">
         <StackPanel Spacing="4">
             <TextBlock Text="Playlists" FontSize="30" FontWeight="Bold" />
-            <TextBlock Text="Organize folders and playlists. Create a playlist with selected songs or videos, or add them to an existing playlist." Opacity="0.68" />
+            <TextBlock Text="Organize folders and playlists. Select tracks with Ctrl or Shift to play or copy them, create a playlist with selected songs or videos, or add them to an existing playlist." Opacity="0.68" />
         </StackPanel>
         <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
             <TextBox x:Name="PlaylistNameBox" PlaceholderText="New playlist or folder name" />
@@ -41,10 +41,9 @@
                 </Grid>
                 <ListView
                     x:Name="TracksList"
-                    IsItemClickEnabled="True"
-                    ItemClick="OnTrackClicked"
                     ItemTemplate="{StaticResource MusicResourceRowTemplate}"
-                    SelectionMode="Single" />
+                    SelectionChanged="OnTrackSelectionChanged"
+                    SelectionMode="Extended" />
             </StackPanel>
         </Grid>
         <StackPanel Grid.Row="5" Orientation="Horizontal" Spacing="10">
