@@ -84,6 +84,9 @@ jobs:
             throw "Published app not found at $appPath"
           }
 
+          $launchTime = Get-Date
+          Write-Host "Runner identity: $(whoami)"
+          whoami /groups | Select-String 'Mandatory Label' | ForEach-Object { Write-Host $_.Line }
           $app = Start-Process -FilePath $appPath -PassThru
           try {
             $windowHandle = [IntPtr]::Zero
@@ -91,6 +94,12 @@ jobs:
               Start-Sleep -Seconds 1
               $app.Refresh()
               if ($app.HasExited) {
+                $crashEvents = Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = $launchTime } -ErrorAction SilentlyContinue |
+                  Where-Object { $_.Message -match 'AmNative\.exe' } |
+                  Select-Object -First 5
+                foreach ($crashEvent in $crashEvents) {
+                  Write-Host "Windows application event $($crashEvent.Id): $($crashEvent.Message)"
+                }
                 throw "AM Native exited before its window appeared. Exit code: $($app.ExitCode)"
               }
               $windowHandle = $app.MainWindowHandle
