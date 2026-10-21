@@ -23,7 +23,7 @@ public sealed partial class ResourcePage : Page
         .ToArray();
     private IReadOnlyList<MusicResource> SelectedFavoriteItems => RelatedList.SelectedItems
         .OfType<MusicResource>()
-        .Where(static item => item.CanBeFavorited && !item.IsFavorited)
+        .Where(static item => item.CanBeFavorited && item.IsFavorited != true)
         .DistinctBy(static item => (item.Type, item.Id))
         .ToArray();
     private IReadOnlyList<MusicResource> SelectedPlaylistItems => RelatedList.SelectedItems
@@ -365,7 +365,7 @@ public sealed partial class ResourcePage : Page
     private async Task FavoriteAsync(IEnumerable<MusicResource> resources)
     {
         var items = resources
-            .Where(static item => item.CanBeFavorited && !item.IsFavorited)
+            .Where(static item => item.CanBeFavorited && item.IsFavorited != true)
             .DistinctBy(static item => (item.Type, item.Id))
             .ToArray();
         if (items.Length == 0 || _addingToFavorites)
@@ -411,7 +411,9 @@ public sealed partial class ResourcePage : Page
     {
         AddParentButton.IsEnabled = !_loading && !_addingToLibrary && _resource?.CanBeAddedToLibrary == true;
         FavoriteParentButton.Content = _resource?.IsFavorited == true ? "Already favorited" : "Add to favorites";
-        FavoriteParentButton.IsEnabled = !_loading && !_addingToFavorites && _resource is { CanBeFavorited: true, IsFavorited: false };
+        FavoriteParentButton.IsEnabled = !_loading && !_addingToFavorites &&
+                                         _resource is { CanBeFavorited: true } &&
+                                         _resource.IsFavorited != true;
         ArtistViewButtons.Visibility = IsCatalogArtist(_resource) ? Visibility.Visible : Visibility.Collapsed;
         ArtistAlbumsButton.IsEnabled = !_loading && _showArtistTopSongs;
         ArtistTopSongsButton.IsEnabled = !_loading && !_showArtistTopSongs;

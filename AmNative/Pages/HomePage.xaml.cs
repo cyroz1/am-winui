@@ -26,7 +26,7 @@ public sealed partial class HomePage : Page
     private IReadOnlyList<MusicResource> SelectedFavoriteItems => RecommendationsList.SelectedItems
         .OfType<MusicResource>()
         .Concat(RecentlyPlayedList.SelectedItems.OfType<MusicResource>())
-        .Where(static item => item.CanBeFavorited && !item.IsFavorited)
+        .Where(static item => item.CanBeFavorited && item.IsFavorited != true)
         .DistinctBy(static item => (item.Type, item.Id))
         .ToArray();
     private IReadOnlyList<MusicResource> SelectedPlaylistItems => RecommendationsList.SelectedItems

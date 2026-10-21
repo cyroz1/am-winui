@@ -24,7 +24,7 @@ public sealed partial class SearchPage : Page
         .ToArray();
     private IReadOnlyList<MusicResource> SelectedFavoriteItems => ResultsList.SelectedItems
         .OfType<MusicResource>()
-        .Where(static item => item.CanBeFavorited && !item.IsFavorited)
+        .Where(static item => item.CanBeFavorited && item.IsFavorited != true)
         .DistinctBy(static item => (item.Type, item.Id))
         .ToArray();
     private IReadOnlyList<MusicResource> SelectedPlaylistItems => ResultsList.SelectedItems

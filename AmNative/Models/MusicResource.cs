@@ -19,7 +19,7 @@ public sealed class MusicResource
     public string? PreviewUrl { get; init; }
     public string? ShareUrl { get; init; }
     public int? DurationInMillis { get; init; }
-    public bool IsFavorited { get; set; }
+    public bool? IsFavorited { get; set; }
     public bool CanEdit { get; init; }
     public bool CanBeAddedToLibrary => Type is
         "songs" or "song" or "albums" or "album" or "artists" or "artist" or
@@ -133,7 +133,7 @@ public sealed class MusicResource
             PreviewUrl = previewUrl,
             ShareUrl = ReadString(attributes, "url"),
             DurationInMillis = duration,
-            IsFavorited = ReadBool(attributes, "inFavorites"),
+            IsFavorited = ReadNullableBool(attributes, "inFavorites"),
             CanEdit = ReadBool(attributes, "canEdit")
         };
     }
@@ -184,5 +184,20 @@ public sealed class MusicResource
         return element.ValueKind == JsonValueKind.Object &&
                element.TryGetProperty(property, out var value) &&
                value.ValueKind == JsonValueKind.True;
+    }
+
+    private static bool? ReadNullableBool(JsonElement element, string property)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(property, out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => null
+        };
     }
 }

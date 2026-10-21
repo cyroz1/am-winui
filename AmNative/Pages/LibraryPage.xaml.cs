@@ -9,10 +9,12 @@ namespace AmNative.Pages;
 public sealed partial class LibraryPage : Page
 {
     private readonly ObservableCollection<MusicResource> _items = new();
+    private readonly List<MusicResource> _loadedItems = new();
     private readonly List<Uri> _nextPages = new();
     private MusicResource? _selected;
     private bool _loading;
     private bool _isSearching;
+    private bool _showFavoritesOnly;
     private bool _resolvingPlayback;
     private bool _addingToFavorites;
     private bool _ratingLoading;
@@ -21,7 +23,7 @@ public sealed partial class LibraryPage : Page
     private CancellationTokenSource? _ratingLookupCancellation;
     private IReadOnlyList<MusicResource> SelectedFavoriteItems => LibraryList.SelectedItems
         .OfType<MusicResource>()
-        .Where(static item => item.CanBeFavorited && !item.IsFavorited)
+        .Where(static item => item.CanBeFavorited && item.IsFavorited != true)
         .DistinctBy(static item => (item.Type, item.Id))
         .ToArray();
     private IReadOnlyList<MusicResource> SelectedPlaylistItems => LibraryList.SelectedItems
@@ -48,6 +50,18 @@ public sealed partial class LibraryPage : Page
 
     private async void OnLoadMoreClicked(object sender, RoutedEventArgs e) => await LoadMoreAsync();
 
+    private void OnFavoriteFilterClicked(object sender, RoutedEventArgs e)
+    {
+        _showFavoritesOnly = FavoriteFilterButton.IsChecked == true;
+        LibraryList.SelectedItems.Clear();
+        _selected = null;
+        _selectedRating = null;
+        ActionStatus.Text = "";
+        RefreshVisibleItems();
+        UpdateResultStatus();
+        UpdateActions();
+    }
+
     private async void OnSearchKeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
@@ -71,19 +85,17 @@ public sealed partial class LibraryPage : Page
         _nextPages.Clear();
         UpdateBusyState();
         StatusText.Text = "Loading your library…";
+        _loadedItems.Clear();
         _items.Clear();
         _selected = null;
         UpdateActions();
         try
         {
             var page = await App.MusicApi.GetLibraryPageAsync(kind);
-            foreach (var item in page.Items)
-            {
-                _items.Add(item);
-            }
-
+            _loadedItems.AddRange(page.Items);
+            RefreshVisibleItems();
             _nextPages.AddRange(page.NextPages);
-            StatusText.Text = $"{_items.Count} {kind}";
+            UpdateResultStatus();
         }
         catch (Exception exception)
         {
@@ -115,6 +127,7 @@ public sealed partial class LibraryPage : Page
         _nextPages.Clear();
         UpdateBusyState();
         StatusText.Text = "Searching your library…";
+        _loadedItems.Clear();
         _items.Clear();
         _selected = null;
         UpdateActions();
@@ -122,14 +135,10 @@ public sealed partial class LibraryPage : Page
         try
         {
             var result = await App.MusicApi.SearchLibraryPageAsync(term);
-            _items.Clear();
-            foreach (var item in result.Items)
-            {
-                _items.Add(item);
-            }
-
+            _loadedItems.AddRange(result.Items);
+            RefreshVisibleItems();
             _nextPages.AddRange(result.NextPages);
-            StatusText.Text = $"{_items.Count} results";
+            UpdateResultStatus();
         }
         catch (Exception exception)
         {
@@ -163,24 +172,12 @@ public sealed partial class LibraryPage : Page
             _nextPages.Clear();
             foreach (var page in pages)
             {
-                foreach (var item in page.Items)
-                {
-                    _items.Add(item);
-                }
-
+                _loadedItems.AddRange(page.Items);
                 _nextPages.AddRange(page.NextPages);
             }
 
-            if (_isSearching)
-            {
-                StatusText.Text = $"{_items.Count} results";
-            }
-            else
-            {
-                var selected = KindBox.SelectedItem as ComboBoxItem;
-                var kind = selected?.Tag as string ?? "songs";
-                StatusText.Text = $"{_items.Count} {kind}";
-            }
+            RefreshVisibleItems();
+            UpdateResultStatus();
         }
         catch (Exception exception)
         {
@@ -198,7 +195,53 @@ public sealed partial class LibraryPage : Page
         KindBox.IsEnabled = !_loading;
         LibrarySearchBox.IsEnabled = !_loading;
         RefreshButton.IsEnabled = !_loading;
+        FavoriteFilterButton.IsEnabled = !_loading;
         UpdateLoadMoreButton();
+    }
+
+    private void RefreshVisibleItems()
+    {
+        _items.Clear();
+        foreach (var item in _loadedItems)
+        {
+            if (!_showFavoritesOnly || item.IsFavorited == true)
+            {
+                _items.Add(item);
+            }
+        }
+    }
+
+    private void UpdateResultStatus()
+    {
+        if (!_showFavoritesOnly)
+        {
+            if (_isSearching)
+            {
+                StatusText.Text = $"{_items.Count} results";
+            }
+            else
+            {
+                var selected = KindBox.SelectedItem as ComboBoxItem;
+                var kind = selected?.Tag as string ?? "songs";
+                StatusText.Text = $"{_items.Count} {kind}";
+            }
+
+            return;
+        }
+
+        var unknownCount = _loadedItems.Count(static item => item.IsFavorited is null);
+        var status = $"{_items.Count} favorites among {_loadedItems.Count} loaded items";
+        if (unknownCount > 0)
+        {
+            status += $" · Apple did not report favorite status for {unknownCount}";
+        }
+
+        if (_nextPages.Count > 0)
+        {
+            status += " · load more to continue";
+        }
+
+        StatusText.Text = status;
     }
 
     private void UpdateLoadMoreButton()

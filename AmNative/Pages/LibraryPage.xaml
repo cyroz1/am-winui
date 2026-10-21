@@ -5,7 +5,7 @@
     <Grid Padding="32,28" RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="16">
         <StackPanel Spacing="4">
             <TextBlock Text="Your library" FontSize="30" FontWeight="Bold" />
-            <TextBlock Text="Browse songs, albums, artists, playlists, and videos saved to your Apple Music account. Use Ctrl or Shift to select tracks or videos for a playlist, or library items with a catalog match for favorites." Opacity="0.68" />
+            <TextBlock Text="Browse songs, albums, artists, playlists, and videos saved to your Apple Music account. Filter for favorites and use Ctrl or Shift to select items for playback or playlists." Opacity="0.68" />
         </StackPanel>
         <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
             <ComboBox x:Name="KindBox" SelectedIndex="0" SelectionChanged="OnKindChanged" MinWidth="150">
@@ -19,9 +19,10 @@
             <TextBox x:Name="LibrarySearchBox" Grid.Column="1" PlaceholderText="Search your library" KeyDown="OnSearchKeyDown" />
             <Button x:Name="RefreshButton" Grid.Column="2" Content="Refresh" Click="OnRefreshClicked" />
         </Grid>
-        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
             <TextBlock x:Name="StatusText" Text="Connect Apple Music in Settings to load your library." Opacity="0.72" VerticalAlignment="Center" />
-            <Button x:Name="LoadMoreButton" Grid.Column="1" Content="Load more" Visibility="Collapsed" Click="OnLoadMoreClicked" />
+            <ToggleButton x:Name="FavoriteFilterButton" Grid.Column="1" Content="Favorites only" Click="OnFavoriteFilterClicked" />
+            <Button x:Name="LoadMoreButton" Grid.Column="2" Content="Load more" Visibility="Collapsed" Click="OnLoadMoreClicked" />
         </Grid>
         <ListView
             x:Name="LibraryList"
