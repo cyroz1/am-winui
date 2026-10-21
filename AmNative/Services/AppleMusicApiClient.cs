@@ -65,7 +65,7 @@ public sealed class AppleMusicApiClient
     public async Task<IReadOnlyList<MusicResource>> SearchCatalogAsync(string term, CancellationToken cancellationToken = default)
     {
         var storefront = await ResolveStorefrontAsync(cancellationToken);
-        var query = $"catalog/{storefront}/search?term={Uri.EscapeDataString(term)}&types=songs,albums,artists,playlists,music-videos&limit=25";
+        var query = $"catalog/{storefront}/search?term={Uri.EscapeDataString(term)}&types=songs,albums,artists,playlists,music-videos,stations&limit=25";
         using var request = CreateRequest(HttpMethod.Get, query);
         using var response = await SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
@@ -77,7 +77,7 @@ public sealed class AppleMusicApiClient
         }
 
         var resources = new List<MusicResource>();
-        foreach (var type in new[] { "songs", "albums", "artists", "playlists", "music-videos" })
+        foreach (var type in new[] { "songs", "albums", "artists", "playlists", "music-videos", "stations" })
         {
             if (!results.TryGetProperty(type, out var collection) ||
                 collection.ValueKind != JsonValueKind.Object ||
@@ -128,7 +128,7 @@ public sealed class AppleMusicApiClient
     public async Task<MusicResourcePage> SearchCatalogPageAsync(string term, CancellationToken cancellationToken = default)
     {
         var storefront = await ResolveStorefrontAsync(cancellationToken);
-        var query = $"catalog/{storefront}/search?term={Uri.EscapeDataString(term)}&types=songs,albums,artists,playlists,music-videos&limit=25";
+        var query = $"catalog/{storefront}/search?term={Uri.EscapeDataString(term)}&types=songs,albums,artists,playlists,music-videos,stations&limit=25";
         using var request = CreateRequest(HttpMethod.Get, query);
         using var response = await SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
@@ -143,7 +143,7 @@ public sealed class AppleMusicApiClient
 
         var resources = new List<MusicResource>();
         var nextPages = new List<Uri>();
-        foreach (var type in new[] { "songs", "albums", "artists", "playlists", "music-videos" })
+        foreach (var type in new[] { "songs", "albums", "artists", "playlists", "music-videos", "stations" })
         {
             if (!results.TryGetProperty(type, out var collection) || collection.ValueKind != JsonValueKind.Object)
             {
@@ -698,6 +698,7 @@ public sealed class AppleMusicApiClient
         "library-playlists" => "library-playlists",
         "music-videos" => "music-videos",
         "library-music-videos" => "library-music-videos",
+        "stations" or "station" => "stations",
         _ => throw new InvalidOperationException("Apple Music does not support ratings for this resource type.")
     };
 
@@ -831,7 +832,7 @@ public sealed class AppleMusicApiClient
         {
             foreach (var type in new[]
                      {
-                         "songs", "albums", "artists", "playlists", "music-videos",
+                         "songs", "albums", "artists", "playlists", "music-videos", "stations",
                          "library-songs", "library-albums", "library-artists", "library-playlists", "library-music-videos"
                      })
             {

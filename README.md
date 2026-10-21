@@ -6,7 +6,7 @@ AM Native is a native Windows desktop client for Apple Music. The UI uses WinUI 
 
 ## Current state
 
-- Apple Music catalog search for songs, albums, artists, playlists, and music videos, with live catalog search suggestions.
+- Apple Music catalog search for songs, albums, artists, playlists, music videos, and radio stations, with live catalog search suggestions; apply documented likes and dislikes to supported catalog results.
 - Browse Apple's daily global charts for songs, albums, playlists, and music videos.
 - Load library, catalog-search, and library-search results incrementally using Apple's pagination links.
 - Browse album, artist, and playlist contents incrementally; the full track list is fetched only when starting a preview queue.

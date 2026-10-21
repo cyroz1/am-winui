@@ -22,6 +22,9 @@ public sealed class MusicResource
     public bool? HasLyrics { get; init; }
     public bool? IsFavorited { get; set; }
     public bool IsMusicVideo => Type is "music-videos" or "music-video" or "library-music-videos";
+    public bool CanBeRated => Type is
+        "songs" or "albums" or "playlists" or "music-videos" or "stations" or
+        "library-songs" or "library-albums" or "library-playlists" or "library-music-videos";
     public bool CanEdit { get; init; }
     public bool CanBeAddedToLibrary => Type is
         "songs" or "song" or "albums" or "album" or "artists" or "artist" or
@@ -69,6 +72,7 @@ public sealed class MusicResource
         "albums" or "album" => "Album",
         "artists" or "artist" => "Artist",
         "music-videos" or "music-video" => "Music video",
+        "stations" or "station" => "Radio station",
         _ => Type
     };
 

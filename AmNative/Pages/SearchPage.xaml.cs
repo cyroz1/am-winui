@@ -552,7 +552,7 @@ public sealed partial class SearchPage : Page
             _ => "Add to favorites"
         };
         FavoriteButton.IsEnabled = !_loading && !_addingToFavorites && favoriteItemCount > 0;
-        var supportsRating = _selected?.Type is "songs" or "albums" or "playlists" or "music-videos";
+        var supportsRating = _selected?.CanBeRated == true;
         LikeButton.IsEnabled = supportsRating;
         DislikeButton.IsEnabled = supportsRating;
         ClearRatingButton.IsEnabled = supportsRating;
