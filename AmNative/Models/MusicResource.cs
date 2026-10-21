@@ -18,6 +18,8 @@ public sealed class MusicResource
     public string? ShareUrl { get; init; }
     public int? DurationInMillis { get; init; }
     public IReadOnlyList<string> GenreNames { get; init; } = Array.Empty<string>();
+    public string? ContentRating { get; init; }
+    public bool? HasLyrics { get; init; }
     public bool? IsFavorited { get; set; }
     public bool IsMusicVideo => Type is "music-videos" or "music-video" or "library-music-videos";
     public bool CanEdit { get; init; }
@@ -49,6 +51,8 @@ public sealed class MusicResource
         ShareUrl = ShareUrl,
         DurationInMillis = DurationInMillis,
         GenreNames = GenreNames,
+        ContentRating = ContentRating,
+        HasLyrics = HasLyrics,
         IsFavorited = IsFavorited,
         CanEdit = CanEdit
     };
@@ -73,6 +77,36 @@ public sealed class MusicResource
         : Type.Contains("playlist", StringComparison.OrdinalIgnoreCase)
             ? (ArtistName.Length > 0 ? ArtistName : "Playlist")
             : string.Join(" · ", new[] { ArtistName, AlbumName }.Where(static value => !string.IsNullOrWhiteSpace(value)));
+
+    public string MetadataSummary
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (GenreNames.Count > 0)
+            {
+                parts.Add(string.Join(", ", GenreNames));
+            }
+
+            if (string.Equals(ContentRating, "explicit", StringComparison.OrdinalIgnoreCase))
+            {
+                parts.Add("Explicit");
+            }
+
+            if (HasLyrics == true)
+            {
+                parts.Add("Lyrics available");
+            }
+
+            if (DurationInMillis is > 0)
+            {
+                var duration = TimeSpan.FromMilliseconds(DurationInMillis.Value);
+                parts.Add($"{(int)duration.TotalMinutes}:{duration.Seconds:00}");
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
 
     public ImageSource? ArtworkSource => ArtworkImageCache.Get(ArtworkUrl);
 
@@ -108,6 +142,8 @@ public sealed class MusicResource
             ShareUrl = ReadString(attributes, "url"),
             DurationInMillis = duration,
             GenreNames = ReadStringArray(attributes, "genreNames"),
+            ContentRating = ReadString(attributes, "contentRating"),
+            HasLyrics = ReadNullableBool(attributes, "hasLyrics"),
             IsFavorited = ReadNullableBool(attributes, "inFavorites"),
             CanEdit = ReadBool(attributes, "canEdit")
         };
