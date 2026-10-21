@@ -14,6 +14,7 @@ public sealed partial class MainWindow : Window
 {
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _playbackProgressTimer;
     private bool _isScrubbing;
+    private bool _playbackTimerRunning;
 
     public MainWindow()
     {
@@ -28,10 +29,9 @@ public sealed partial class MainWindow : Window
         UpdateMuteButton();
 
         _playbackProgressTimer = PlaybackElement.DispatcherQueue.CreateTimer();
-        _playbackProgressTimer.Interval = TimeSpan.FromMilliseconds(400);
+        _playbackProgressTimer.Interval = TimeSpan.FromMilliseconds(500);
         _playbackProgressTimer.IsRepeating = true;
         _playbackProgressTimer.Tick += (_, _) => UpdatePlaybackTimeline();
-        _playbackProgressTimer.Start();
         Closed += (_, _) => _playbackProgressTimer.Stop();
 
         RootNavigation.SelectedItem = RootNavigation.MenuItems[0];
@@ -112,6 +112,7 @@ public sealed partial class MainWindow : Window
         NowPlayingArtworkPlaceholder.Visibility = artwork is null ? Visibility.Visible : Visibility.Collapsed;
         UpdatePlaybackActions();
         UpdatePlaybackTimeline();
+        UpdatePlaybackTimerState();
     }
 
     private void OnPlaybackFailed(object? sender, PlaybackFailedEventArgs args)
@@ -126,7 +127,12 @@ public sealed partial class MainWindow : Window
         NowPlayingArtworkPlaceholder.Visibility = Visibility.Visible;
     }
 
-    private void OnPlayerPlaybackStateChanged(object? sender, EventArgs args) => UpdatePlaybackActions();
+    private void OnPlayerPlaybackStateChanged(object? sender, EventArgs args)
+    {
+        UpdatePlaybackActions();
+        UpdatePlaybackTimeline();
+        UpdatePlaybackTimerState();
+    }
 
     private void OnQueueChanged(object? sender, EventArgs args) => UpdatePlaybackActions();
 
@@ -362,5 +368,24 @@ public sealed partial class MainWindow : Window
         RepeatButton.IsChecked = App.Player.IsRepeatEnabled;
         QueueButton.Content = App.Player.Queue.Count > 0 ? $"Queue ({App.Player.Queue.Count})" : "Queue";
         QueueButton.IsEnabled = App.Player.Queue.Count > 0;
+    }
+
+    private void UpdatePlaybackTimerState()
+    {
+        var shouldRun = App.Player.IsPlaying;
+        if (shouldRun == _playbackTimerRunning)
+        {
+            return;
+        }
+
+        _playbackTimerRunning = shouldRun;
+        if (shouldRun)
+        {
+            _playbackProgressTimer.Start();
+        }
+        else
+        {
+            _playbackProgressTimer.Stop();
+        }
     }
 }
