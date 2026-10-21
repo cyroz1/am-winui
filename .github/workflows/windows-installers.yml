@@ -54,14 +54,14 @@ jobs:
 
           $dependencyManifests = Get-ChildItem $env:PUBLISH_DIR -Recurse -File -Include *.deps.json,packages.lock.json
           $webViewDependencies = $dependencyManifests |
-            Select-String -Pattern '"Microsoft\.Web\.WebView2(?:\.Core)?":|WebView2Loader|CoreWebView2'
+            Select-String -Pattern '"Microsoft\.Web\.WebView2":'
           if ($webViewDependencies) {
             $webViewDependencies | ForEach-Object { Write-Error "$($_.Path): $($_.Line.Trim())" }
             throw 'The published app must not depend on the WebView2 SDK.'
           }
 
           $runtimeFiles = Get-ChildItem $env:PUBLISH_DIR -Recurse -File |
-            Where-Object { $_.Name -match '(?i)(WebView2|msedge|EmbeddedBrowserWebView)' }
+            Where-Object { $_.Name -match '(?i)^(msedgewebview2\.exe|msedge\.dll|msedge_elf\.dll|EmbeddedBrowserWebView\.dll)$' }
           if ($runtimeFiles) {
             $runtimeFiles | ForEach-Object { Write-Error "Unexpected WebView2 runtime file: $($_.FullName)" }
             throw 'The installer must not bundle the WebView2 runtime.'
