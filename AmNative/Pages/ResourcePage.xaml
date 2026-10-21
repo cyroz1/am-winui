@@ -39,6 +39,20 @@
                 <ComboBoxItem Content="Singles" Tag="singles" />
             </ComboBox>
         </StackPanel>
+        <StackPanel x:Name="AlbumViewSelector" Grid.Row="2" Orientation="Horizontal" Spacing="10" Visibility="Collapsed">
+            <TextBlock Text="Browse" VerticalAlignment="Center" Opacity="0.72" />
+            <ComboBox
+                x:Name="AlbumViewsBox"
+                MinWidth="260"
+                AutomationProperties.Name="Browse album content"
+                SelectionChanged="OnAlbumViewSelectionChanged">
+                <ComboBoxItem Content="Tracks" Tag="tracks" />
+                <ComboBoxItem Content="Appears on playlists" Tag="appears-on" />
+                <ComboBoxItem Content="Other versions" Tag="other-versions" />
+                <ComboBoxItem Content="Related albums" Tag="related-albums" />
+                <ComboBoxItem Content="Related videos" Tag="related-videos" />
+            </ComboBox>
+        </StackPanel>
         <ListView
             x:Name="RelatedList"
             Grid.Row="3"

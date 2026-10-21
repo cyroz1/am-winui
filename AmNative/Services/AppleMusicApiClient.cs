@@ -527,6 +527,21 @@ public sealed class AppleMusicApiClient
         return await GetAllPagesAsync(endpoint, cancellationToken);
     }
 
+    public Task<MusicResourcePage> GetAlbumCatalogViewPageAsync(
+        MusicResource album,
+        string view,
+        CancellationToken cancellationToken = default) =>
+        GetAlbumViewPageAsync(album, view, cancellationToken);
+
+    public async Task<IReadOnlyList<MusicResource>> GetAlbumCatalogViewAsync(
+        MusicResource album,
+        string view,
+        CancellationToken cancellationToken = default)
+    {
+        var endpoint = await GetAlbumViewEndpointAsync(album, view, cancellationToken);
+        return await GetAllPagesAsync(endpoint, cancellationToken);
+    }
+
     private async Task<MusicResourcePage> GetArtistViewPageAsync(MusicResource artist, string view, CancellationToken cancellationToken)
     {
         var endpoint = await GetArtistViewEndpointAsync(artist, view, cancellationToken);
@@ -549,6 +564,33 @@ public sealed class AppleMusicApiClient
 
         var storefront = await ResolveStorefrontAsync(cancellationToken);
         return $"catalog/{storefront}/artists/{Uri.EscapeDataString(artist.Id)}/view/{view}";
+    }
+
+    private async Task<MusicResourcePage> GetAlbumViewPageAsync(
+        MusicResource album,
+        string view,
+        CancellationToken cancellationToken)
+    {
+        var endpoint = await GetAlbumViewEndpointAsync(album, view, cancellationToken);
+        return await GetApiResourcePageAsync(new Uri(ApiRoot, endpoint), cancellationToken);
+    }
+
+    private async Task<string> GetAlbumViewEndpointAsync(MusicResource album, string view, CancellationToken cancellationToken)
+    {
+        var id = album.Type switch
+        {
+            "albums" or "album" => album.Id,
+            "library-albums" when !string.IsNullOrWhiteSpace(album.CatalogId) => album.CatalogId!,
+            _ => throw new InvalidOperationException("Catalog album views require an album with a catalog ID.")
+        };
+
+        if (view is not ("appears-on" or "other-versions" or "related-albums" or "related-videos"))
+        {
+            throw new ArgumentOutOfRangeException(nameof(view), "Apple Music does not document this album view.");
+        }
+
+        var storefront = await ResolveStorefrontAsync(cancellationToken);
+        return $"catalog/{storefront}/albums/{Uri.EscapeDataString(id)}/view/{view}";
     }
 
     private async Task<string> GetRelatedResourcesEndpointAsync(MusicResource resource, CancellationToken cancellationToken)
