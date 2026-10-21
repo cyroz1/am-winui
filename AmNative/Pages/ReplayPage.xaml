@@ -30,6 +30,7 @@
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <Button x:Name="OpenButton" Content="Open" IsEnabled="False" Click="OnOpenClicked" />
                     <Button x:Name="PlayButton" Content="Play previews" IsEnabled="False" Click="OnPlayClicked" />
+                    <Button x:Name="QueueButton" Content="Add to queue" IsEnabled="False" Click="OnQueueClicked" />
                     <Button x:Name="AddButton" Content="Add to library" IsEnabled="False" Click="OnAddClicked" />
                     <Button x:Name="PlaylistButton" Content="Add to playlist" IsEnabled="False" Click="OnAddToPlaylistClicked" />
                     <Button x:Name="FavoriteButton" Content="Add to favorites" IsEnabled="False" Click="OnFavoriteClicked" />

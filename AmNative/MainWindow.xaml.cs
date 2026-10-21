@@ -18,6 +18,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         App.Player.Attach(PlaybackElement);
         App.Player.TrackChanged += OnTrackChanged;
+        App.Player.QueueChanged += OnQueueChanged;
         App.Player.PlaybackStateChanged += OnPlayerPlaybackStateChanged;
         VolumeSlider.Value = App.Player.Volume;
         UpdateMuteButton();
@@ -69,6 +70,8 @@ public sealed partial class MainWindow : Window
     }
 
     private void OnPlayerPlaybackStateChanged(object? sender, EventArgs args) => UpdatePlaybackActions();
+
+    private void OnQueueChanged(object? sender, EventArgs args) => UpdatePlaybackActions();
 
     private void OnTimelineValueChanged(object sender, RangeBaseValueChangedEventArgs args)
     {

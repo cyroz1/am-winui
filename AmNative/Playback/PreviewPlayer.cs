@@ -39,6 +39,7 @@ public sealed class PreviewPlayer
 
     public event EventHandler<TrackChangedEventArgs>? TrackChanged;
     public event EventHandler? PlaybackStateChanged;
+    public event EventHandler? QueueChanged;
 
     public void Attach(MediaPlayerElement element)
     {
@@ -81,23 +82,7 @@ public sealed class PreviewPlayer
         playbackList.AutoRepeatEnabled = _repeatEnabled;
         foreach (var item in queue)
         {
-            if (TryGetPreviewUri(item, out var uri))
-            {
-                var playbackItem = new MediaPlaybackItem(MediaSource.CreateFromUri(uri));
-                var displayProperties = playbackItem.GetDisplayProperties();
-                displayProperties.Type = MediaPlaybackType.Music;
-                displayProperties.MusicProperties.Title = item.Name;
-                displayProperties.MusicProperties.Artist = item.ArtistName;
-                var artworkUrl = item.ArtworkUrl?.Replace("{w}", "512", StringComparison.Ordinal)
-                    .Replace("{h}", "512", StringComparison.Ordinal);
-                if (Uri.TryCreate(artworkUrl, UriKind.Absolute, out var artworkUri) && artworkUri.Scheme == Uri.UriSchemeHttps)
-                {
-                    displayProperties.Thumbnail = RandomAccessStreamReference.CreateFromUri(artworkUri);
-                }
-
-                playbackItem.ApplyDisplayProperties(displayProperties);
-                playbackList.Items.Add(playbackItem);
-            }
+            playbackList.Items.Add(CreatePlaybackItem(item));
         }
 
         playbackList.StartingItem = playbackList.Items.ElementAt(startIndex);
@@ -109,6 +94,7 @@ public sealed class PreviewPlayer
         _queue = queue;
         _currentQueueIndex = startIndex;
         _playbackList = playbackList;
+        QueueChanged?.Invoke(this, EventArgs.Empty);
         playbackList.CurrentItemChanged += OnCurrentItemChanged;
         if (_element is not null)
         {
@@ -123,6 +109,32 @@ public sealed class PreviewPlayer
 
         MediaPlayer.Play();
         TrackChanged?.Invoke(this, new TrackChangedEventArgs(queue[startIndex].Name, queue[startIndex].ArtistName));
+        return Task.CompletedTask;
+    }
+
+    public Task EnqueuePreviewsAsync(IEnumerable<MusicResource> items)
+    {
+        var queue = items
+            .Where(static item => TryGetPreviewUri(item, out _))
+            .ToArray();
+        if (queue.Length == 0)
+        {
+            throw new InvalidOperationException("Apple Music has no playable previews in this selection.");
+        }
+
+        if (_playbackList is null || _queue.Count == 0)
+        {
+            return PlayQueueAsync(queue);
+        }
+
+        foreach (var item in queue)
+        {
+            _playbackList.Items.Add(CreatePlaybackItem(item));
+        }
+
+        _queue = _queue.Concat(queue).ToArray();
+        UpdateTransportNavigation();
+        QueueChanged?.Invoke(this, EventArgs.Empty);
         return Task.CompletedTask;
     }
 
@@ -239,6 +251,7 @@ public sealed class PreviewPlayer
             _currentQueueIndex = index;
             UpdateTransportNavigation();
             TrackChanged?.Invoke(this, new TrackChangedEventArgs(item.Name, item.ArtistName));
+            QueueChanged?.Invoke(this, EventArgs.Empty);
         });
     }
 
@@ -259,6 +272,29 @@ public sealed class PreviewPlayer
 
         uri = null!;
         return false;
+    }
+
+    private static MediaPlaybackItem CreatePlaybackItem(MusicResource item)
+    {
+        if (!TryGetPreviewUri(item, out var uri))
+        {
+            throw new InvalidOperationException("This item has no playable preview audio.");
+        }
+
+        var playbackItem = new MediaPlaybackItem(MediaSource.CreateFromUri(uri));
+        var displayProperties = playbackItem.GetDisplayProperties();
+        displayProperties.Type = MediaPlaybackType.Music;
+        displayProperties.MusicProperties.Title = item.Name;
+        displayProperties.MusicProperties.Artist = item.ArtistName;
+        var artworkUrl = item.ArtworkUrl?.Replace("{w}", "512", StringComparison.Ordinal)
+            .Replace("{h}", "512", StringComparison.Ordinal);
+        if (Uri.TryCreate(artworkUrl, UriKind.Absolute, out var artworkUri) && artworkUri.Scheme == Uri.UriSchemeHttps)
+        {
+            displayProperties.Thumbnail = RandomAccessStreamReference.CreateFromUri(artworkUri);
+        }
+
+        playbackItem.ApplyDisplayProperties(displayProperties);
+        return playbackItem;
     }
 
     private void OnTransportButtonPressed(SystemMediaTransportControls sender, SystemMediaTransportControlsButtonPressedEventArgs args)

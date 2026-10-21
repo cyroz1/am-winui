@@ -217,6 +217,33 @@ public sealed partial class ReplayPage : Page
         }
     }
 
+    private async void OnQueueClicked(object sender, RoutedEventArgs e)
+    {
+        var items = SelectedPlayableItems;
+        if (items.Count == 0 || _resolvingPlayback)
+        {
+            return;
+        }
+
+        _resolvingPlayback = true;
+        UpdateActions();
+        ActionStatus.Text = "Resolving previews to add to the queue…";
+        try
+        {
+            var count = await App.EnqueuePreviewsAsync(items);
+            ActionStatus.Text = count == 1 ? "Added one preview to the queue." : $"Added {count} previews to the queue.";
+        }
+        catch (Exception exception)
+        {
+            ActionStatus.Text = exception.Message;
+        }
+        finally
+        {
+            _resolvingPlayback = false;
+            UpdateActions();
+        }
+    }
+
     private async void OnAddClicked(object sender, RoutedEventArgs e)
     {
         var items = SelectedLibraryItems;
@@ -322,6 +349,8 @@ public sealed partial class ReplayPage : Page
         OpenButton.IsEnabled = !_loading && selected.Length == 1 && _selected is not null && CanOpen(_selected);
         PlayButton.IsEnabled = !_loading && !_resolvingPlayback && SelectedPlayableItems.Count > 0;
         PlayButton.Content = SelectedPlayableItems.Count > 1 ? "Play previews" : "Play preview";
+        QueueButton.IsEnabled = !_loading && !_resolvingPlayback && SelectedPlayableItems.Count > 0;
+        QueueButton.Content = SelectedPlayableItems.Count > 1 ? $"Add {SelectedPlayableItems.Count} to queue" : "Add to queue";
         AddButton.IsEnabled = !_loading && !_addingToLibrary && SelectedLibraryItems.Count > 0;
         PlaylistButton.IsEnabled = !_loading && SelectedPlaylistItems.Count > 0;
         FavoriteButton.Content = SelectedFavoriteItems.Count > 1

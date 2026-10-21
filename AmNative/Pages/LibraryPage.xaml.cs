@@ -250,6 +250,33 @@ public sealed partial class LibraryPage : Page
         }
     }
 
+    private async void OnQueueClicked(object sender, RoutedEventArgs e)
+    {
+        var items = SelectedPlaylistItems.Where(static item => item.CanPlayPreview).ToArray();
+        if (items.Length == 0 || _resolvingPlayback)
+        {
+            return;
+        }
+
+        _resolvingPlayback = true;
+        UpdateActions();
+        ActionStatus.Text = "Resolving previews to add to the queue…";
+        try
+        {
+            var count = await App.EnqueuePreviewsAsync(items);
+            ActionStatus.Text = count == 1 ? "Added one preview to the queue." : $"Added {count} previews to the queue.";
+        }
+        catch (Exception exception)
+        {
+            ActionStatus.Text = exception.Message;
+        }
+        finally
+        {
+            _resolvingPlayback = false;
+            UpdateActions();
+        }
+    }
+
     private void OnAddClicked(object sender, RoutedEventArgs e)
     {
         var items = SelectedPlaylistItems;
@@ -323,6 +350,8 @@ public sealed partial class LibraryPage : Page
         var playableCount = SelectedPlaylistItems.Count(static item => item.CanPlayPreview);
         PlayButton.Content = playableCount > 1 ? $"Play {playableCount} previews" : "Play preview";
         PlayButton.IsEnabled = !_loading && !_resolvingPlayback && playableCount > 0;
+        QueueButton.Content = playableCount > 1 ? $"Add {playableCount} to queue" : "Add to queue";
+        QueueButton.IsEnabled = !_loading && !_resolvingPlayback && playableCount > 0;
         var playlistItemCount = SelectedPlaylistItems.Count;
         AddButton.Content = playlistItemCount > 1
             ? $"Add {playlistItemCount} items to playlist"

@@ -368,6 +368,32 @@ public sealed partial class PlaylistsPage : Page
         }
     }
 
+    private async void OnQueueTrackClicked(object sender, RoutedEventArgs e)
+    {
+        if (_selectedTrack is null || !_selectedTrack.CanPlayPreview || _loading || _loadingTracks || _mutating)
+        {
+            return;
+        }
+
+        var track = _selectedTrack;
+        _loadingTracks = true;
+        UpdateCommandState();
+        try
+        {
+            var count = await App.EnqueuePreviewsAsync(new[] { track });
+            StatusText.Text = count == 1 ? $"Added “{track.Name}” to the queue." : $"Added {count} previews to the queue.";
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = exception.Message;
+        }
+        finally
+        {
+            _loadingTracks = false;
+            UpdateCommandState();
+        }
+    }
+
     private void UpdateSelection()
     {
         SelectedPlaylistText.Text = _selectedPlaylist is { CanEdit: false }
@@ -401,5 +427,6 @@ public sealed partial class PlaylistsPage : Page
         AddSongButton.IsEnabled = enabled && _pendingItems.Count > 0 && _selectedPlaylist is not null &&
                                   _selectedPlaylist.CanEdit && _pendingItems.All(static item => item.CanBeAddedToPlaylist);
         PlayTrackButton.IsEnabled = enabled && _selectedTrack?.CanPlayPreview == true;
+        QueueTrackButton.IsEnabled = enabled && _selectedTrack?.CanPlayPreview == true;
     }
 }
