@@ -38,9 +38,29 @@
 
         <Border Grid.Row="1" Padding="16,10" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
             <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto" VerticalAlignment="Center" ColumnSpacing="8">
-                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                    <TextBlock x:Name="NowPlayingTitle" Text="Nothing playing" FontWeight="SemiBold" />
-                    <TextBlock x:Name="NowPlayingArtist" Text="Apple Music preview player" Opacity="0.68" FontSize="12" />
+                <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <Border Width="44" Height="44" CornerRadius="6" Background="{ThemeResource ControlFillColorSecondaryBrush}">
+                        <Grid>
+                            <Image
+                                x:Name="NowPlayingArtwork"
+                                Stretch="UniformToFill"
+                                Visibility="Collapsed"
+                                ImageFailed="OnNowPlayingArtworkFailed"
+                                AutomationProperties.Name="Current track artwork" />
+                            <TextBlock
+                                x:Name="NowPlayingArtworkPlaceholder"
+                                Text="♫"
+                                FontSize="20"
+                                Opacity="0.55"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                AutomationProperties.AccessibilityView="Raw" />
+                        </Grid>
+                    </Border>
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock x:Name="NowPlayingTitle" Text="Nothing playing" FontWeight="SemiBold" />
+                        <TextBlock x:Name="NowPlayingArtist" Text="Apple Music preview player" Opacity="0.68" FontSize="12" />
+                    </StackPanel>
                 </StackPanel>
                 <Button x:Name="PreviousTrackButton" Grid.Row="0" Grid.Column="1" Content="Previous" IsEnabled="False" Click="OnPreviousTrackClicked" />
                 <controls:MediaPlayerElement

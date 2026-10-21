@@ -65,8 +65,18 @@ public sealed partial class MainWindow : Window
     {
         NowPlayingTitle.Text = args.Title;
         NowPlayingArtist.Text = args.Artist;
+        var artwork = args.Resource?.ArtworkSource;
+        NowPlayingArtwork.Source = artwork;
+        NowPlayingArtwork.Visibility = artwork is null ? Visibility.Collapsed : Visibility.Visible;
+        NowPlayingArtworkPlaceholder.Visibility = artwork is null ? Visibility.Visible : Visibility.Collapsed;
         UpdatePlaybackActions();
         UpdatePlaybackTimeline();
+    }
+
+    private void OnNowPlayingArtworkFailed(object sender, ExceptionRoutedEventArgs args)
+    {
+        NowPlayingArtwork.Visibility = Visibility.Collapsed;
+        NowPlayingArtworkPlaceholder.Visibility = Visibility.Visible;
     }
 
     private void OnPlayerPlaybackStateChanged(object? sender, EventArgs args) => UpdatePlaybackActions();

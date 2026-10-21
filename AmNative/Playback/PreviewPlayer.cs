@@ -117,7 +117,7 @@ public sealed class PreviewPlayer
         UpdateTransportNavigation();
 
         MediaPlayer.Play();
-        TrackChanged?.Invoke(this, new TrackChangedEventArgs(queue[startIndex].Name, queue[startIndex].ArtistName));
+        TrackChanged?.Invoke(this, new TrackChangedEventArgs(queue[startIndex]));
         return Task.CompletedTask;
     }
 
@@ -226,7 +226,7 @@ public sealed class PreviewPlayer
 
         UpdateTransportNavigation();
         QueueChanged?.Invoke(this, EventArgs.Empty);
-        TrackChanged?.Invoke(this, new TrackChangedEventArgs("Nothing playing", string.Empty));
+        TrackChanged?.Invoke(this, new TrackChangedEventArgs(null));
     }
 
     public void SkipPrevious()
@@ -341,7 +341,7 @@ public sealed class PreviewPlayer
 
             _currentQueueIndex = index;
             UpdateTransportNavigation();
-            TrackChanged?.Invoke(this, new TrackChangedEventArgs(item.Name, item.ArtistName));
+            TrackChanged?.Invoke(this, new TrackChangedEventArgs(item));
             QueueChanged?.Invoke(this, EventArgs.Empty);
         });
     }
@@ -441,8 +441,9 @@ public sealed class PreviewPlayer
     }
 }
 
-public sealed class TrackChangedEventArgs(string title, string artist) : EventArgs
+public sealed class TrackChangedEventArgs(MusicResource? resource) : EventArgs
 {
-    public string Title { get; } = title;
-    public string Artist { get; } = artist;
+    public MusicResource? Resource { get; } = resource;
+    public string Title => Resource?.Name ?? "Nothing playing";
+    public string Artist => Resource?.ArtistName ?? string.Empty;
 }
