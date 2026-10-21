@@ -150,14 +150,23 @@ public sealed class MusicResource
         foreach (var preview in previews.EnumerateArray())
         {
             var url = ReadString(preview, "url");
-            if (!string.IsNullOrWhiteSpace(url))
+            if (IsHttpsUrl(url))
             {
                 return url;
+            }
+
+            var hlsUrl = ReadString(preview, "hlsUrl");
+            if (IsHttpsUrl(hlsUrl))
+            {
+                return hlsUrl;
             }
         }
 
         return null;
     }
+
+    private static bool IsHttpsUrl(string? value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps;
 
     private static string? ReadNestedString(JsonElement element, string parent, string property)
     {
