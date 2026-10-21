@@ -601,7 +601,6 @@ public sealed class AppleMusicApiClient
     {
         "song" or "songs" => "songs",
         "album" or "albums" => "albums",
-        "artist" or "artists" => "artists",
         "playlist" or "playlists" => "playlists",
         "music-videos" or "music-video" => "music-videos",
         _ => throw new InvalidOperationException("This Apple Music item type cannot be added to the library.")

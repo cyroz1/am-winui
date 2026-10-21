@@ -27,7 +27,7 @@ public sealed class MusicResource
         "library-songs" or "library-albums" or "library-playlists" or "library-music-videos";
     public bool CanEdit { get; init; }
     public bool CanBeAddedToLibrary => Type is
-        "songs" or "song" or "albums" or "album" or "artists" or "artist" or
+        "songs" or "song" or "albums" or "album" or
         "playlists" or "playlist" or "music-videos" or "music-video";
     public bool CanBeFavorited => Type switch
     {
