@@ -50,7 +50,7 @@ jobs:
           APP_VERSION: 0.1.${{ github.run_number }}
         run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion="$env:APP_VERSION" /DBuildArch="$env:BUILD_ARCH" /DPublishDir="$env:PUBLISH_DIR" installer\am-native.iss'
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: AM-Native-Setup-${{ matrix.platform }}
           path: artifacts/installers/*.exe
