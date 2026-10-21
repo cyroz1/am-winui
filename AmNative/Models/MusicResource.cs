@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
@@ -84,21 +85,7 @@ public sealed class MusicResource
             }
 
             _artworkSourceInitialized = true;
-            if (string.IsNullOrWhiteSpace(ArtworkUrl))
-            {
-                return null;
-            }
-
-            var url = ArtworkUrl.Replace("{w}", "96", StringComparison.Ordinal)
-                .Replace("{h}", "96", StringComparison.Ordinal);
-            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
-            {
-                return null;
-            }
-
-            var bitmap = new BitmapImage { DecodePixelWidth = 96, DecodePixelHeight = 96 };
-            bitmap.UriSource = uri;
-            _artworkSource = bitmap;
+            _artworkSource = ArtworkImageCache.Get(ArtworkUrl);
             return _artworkSource;
         }
     }
@@ -209,5 +196,53 @@ public sealed class MusicResource
             JsonValueKind.False => false,
             _ => null
         };
+    }
+
+    private static class ArtworkImageCache
+    {
+        private const int Capacity = 128;
+        private static readonly object Sync = new();
+        private static readonly Dictionary<string, LinkedListNode<(string Key, BitmapImage Image)>> Entries = new(StringComparer.Ordinal);
+        private static readonly LinkedList<(string Key, BitmapImage Image)> MostRecentFirst = new();
+
+        public static ImageSource? Get(string? artworkUrl)
+        {
+            if (string.IsNullOrWhiteSpace(artworkUrl))
+            {
+                return null;
+            }
+
+            var url = artworkUrl.Replace("{w}", "96", StringComparison.Ordinal)
+                .Replace("{h}", "96", StringComparison.Ordinal);
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+            {
+                return null;
+            }
+
+            var key = uri.AbsoluteUri;
+            lock (Sync)
+            {
+                if (Entries.TryGetValue(key, out var cached))
+                {
+                    MostRecentFirst.Remove(cached);
+                    MostRecentFirst.AddFirst(cached);
+                    return cached.Value.Image;
+                }
+
+                var image = new BitmapImage { DecodePixelWidth = 96, DecodePixelHeight = 96 };
+                image.UriSource = uri;
+                var entry = MostRecentFirst.AddFirst((key, image));
+                Entries.Add(key, entry);
+
+                if (Entries.Count > Capacity)
+                {
+                    var leastRecent = MostRecentFirst.Last!;
+                    MostRecentFirst.RemoveLast();
+                    Entries.Remove(leastRecent.Value.Key);
+                }
+
+                return image;
+            }
+        }
     }
 }
