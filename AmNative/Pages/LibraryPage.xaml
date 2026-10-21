@@ -1,0 +1,48 @@
+<Page
+    x:Class="AmNative.Pages.LibraryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Padding="32,28" RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="16">
+        <StackPanel Spacing="4">
+            <TextBlock Text="Your library" FontSize="30" FontWeight="Bold" />
+            <TextBlock Text="Browse songs, albums, artists, playlists, and videos saved to your Apple Music account." Opacity="0.68" />
+        </StackPanel>
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+            <ComboBox x:Name="KindBox" SelectedIndex="0" SelectionChanged="OnKindChanged" MinWidth="150">
+                <ComboBoxItem Content="Recently added" Tag="recently-added" />
+                <ComboBoxItem Content="Songs" Tag="songs" />
+                <ComboBoxItem Content="Albums" Tag="albums" />
+                <ComboBoxItem Content="Artists" Tag="artists" />
+                <ComboBoxItem Content="Playlists" Tag="playlists" />
+                <ComboBoxItem Content="Music videos" Tag="music-videos" />
+            </ComboBox>
+            <TextBox x:Name="LibrarySearchBox" Grid.Column="1" PlaceholderText="Search your library" KeyDown="OnSearchKeyDown" />
+            <Button x:Name="RefreshButton" Grid.Column="2" Content="Refresh" Click="OnRefreshClicked" />
+        </Grid>
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <TextBlock x:Name="StatusText" Text="Connect Apple Music in Settings to load your library." Opacity="0.72" VerticalAlignment="Center" />
+            <Button x:Name="LoadMoreButton" Grid.Column="1" Content="Load more" Visibility="Collapsed" Click="OnLoadMoreClicked" />
+        </Grid>
+        <ListView
+            x:Name="LibraryList"
+            Grid.Row="3"
+            IsItemClickEnabled="True"
+            ItemClick="OnItemClicked"
+            ItemTemplate="{StaticResource MusicResourceRowTemplate}"
+            SelectionMode="Single" />
+        <StackPanel Grid.Row="4" Spacing="6">
+            <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button x:Name="OpenButton" Content="Open album, artist, or playlist" IsEnabled="False" Click="OnOpenClicked" />
+                    <Button x:Name="PlayButton" Content="Play preview" IsEnabled="False" Click="OnPlayClicked" />
+                    <Button x:Name="AddButton" Content="Add to playlist" IsEnabled="False" Click="OnAddClicked" />
+                    <Button x:Name="FavoriteButton" Content="Add to favorites" IsEnabled="False" Click="OnFavoriteClicked" />
+                    <Button x:Name="LikeButton" Content="Like" IsEnabled="False" Click="OnLikeClicked" />
+                    <Button x:Name="DislikeButton" Content="Dislike" IsEnabled="False" Click="OnDislikeClicked" />
+                    <Button x:Name="ClearRatingButton" Content="Clear rating" IsEnabled="False" Click="OnClearRatingClicked" />
+                </StackPanel>
+            </ScrollViewer>
+            <TextBlock x:Name="ActionStatus" Opacity="0.7" />
+        </StackPanel>
+    </Grid>
+</Page>

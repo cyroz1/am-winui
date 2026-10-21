@@ -1,0 +1,47 @@
+<Page
+    x:Class="AmNative.Pages.ResourcePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Padding="32,28" RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="16">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+            <Button Content="Back" Click="OnBackClicked" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Spacing="4">
+                <TextBlock x:Name="TitleText" FontSize="30" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="SubtitleText" Opacity="0.68" />
+            </StackPanel>
+        </Grid>
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+            <TextBlock x:Name="StatusText" Text="Loading Apple Music…" VerticalAlignment="Center" Opacity="0.72" />
+            <Button
+                x:Name="LoadMoreButton"
+                Grid.Column="1"
+                Content="Load more"
+                Visibility="Collapsed"
+                Click="OnLoadMoreClicked" />
+            <Button x:Name="AddParentButton" Grid.Column="2" Content="Add to library" Click="OnAddParentClicked" IsEnabled="False" />
+        </Grid>
+        <StackPanel x:Name="ArtistViewButtons" Grid.Row="2" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+            <Button x:Name="ArtistAlbumsButton" Content="Albums" Click="OnArtistAlbumsClicked" />
+            <Button x:Name="ArtistTopSongsButton" Content="Top songs" Click="OnArtistTopSongsClicked" />
+        </StackPanel>
+        <ListView
+            x:Name="RelatedList"
+            Grid.Row="3"
+            IsItemClickEnabled="True"
+            ItemClick="OnItemClicked"
+            ItemTemplate="{StaticResource MusicResourceRowTemplate}"
+            SelectionMode="Single" />
+        <StackPanel Grid.Row="4" Spacing="6">
+            <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button x:Name="OpenButton" Content="Open" IsEnabled="False" Click="OnOpenClicked" />
+                    <Button x:Name="PlayAllButton" Content="Play all previews" IsEnabled="False" Click="OnPlayAllClicked" />
+                    <Button x:Name="PlayButton" Content="Play from here" IsEnabled="False" Click="OnPlayClicked" />
+                    <Button x:Name="AddButton" Content="Add to library" IsEnabled="False" Click="OnAddClicked" />
+                    <Button x:Name="PlaylistButton" Content="Add to playlist" IsEnabled="False" Click="OnAddToPlaylistClicked" />
+                </StackPanel>
+            </ScrollViewer>
+            <TextBlock x:Name="ActionStatus" Opacity="0.7" />
+        </StackPanel>
+    </Grid>
+</Page>

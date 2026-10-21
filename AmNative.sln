@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AmNative", "AmNative\AmNative.csproj", "{46D75209-8F65-4E0B-90DD-51E6959B0E5C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|ARM64 = Debug|ARM64
+		Debug|x64 = Debug|x64
+		Release|ARM64 = Release|ARM64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{46D75209-8F65-4E0B-90DD-51E6959B0E5C}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{46D75209-8F65-4E0B-90DD-51E6959B0E5C}.Debug|ARM64.Build.0 = Debug|ARM64
+		{46D75209-8F65-4E0B-90DD-51E6959B0E5C}.Debug|x64.ActiveCfg = Debug|x64
+		{46D75209-8F65-4E0B-90DD-51E6959B0E5C}.Debug|x64.Build.0 = Debug|x64
+		{46D75209-8F65-4E0B-90DD-51E6959B0E5C}.Release|ARM64.ActiveCfg = Release|ARM64
+		{46D75209-8F65-4E0B-90DD-51E6959B0E5C}.Release|ARM64.Build.0 = Release|ARM64
+		{46D75209-8F65-4E0B-90DD-51E6959B0E5C}.Release|x64.ActiveCfg = Release|x64
+		{46D75209-8F65-4E0B-90DD-51E6959B0E5C}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+EndGlobal

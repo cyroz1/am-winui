@@ -1,0 +1,54 @@
+<Page
+    x:Class="AmNative.Pages.PlaylistsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Padding="32,28" RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="16">
+        <StackPanel Spacing="4">
+            <TextBlock Text="Playlists" FontSize="30" FontWeight="Bold" />
+            <TextBlock Text="Organize folders and playlists, then add songs or music videos." Opacity="0.68" />
+        </StackPanel>
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+            <TextBox x:Name="PlaylistNameBox" PlaceholderText="New playlist or folder name" />
+            <Button x:Name="CreatePlaylistButton" Grid.Column="1" Content="Create playlist" Click="OnCreateClicked" />
+            <Button x:Name="CreateFolderButton" Grid.Column="2" Content="Create folder" Click="OnCreateFolderClicked" />
+        </Grid>
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+            <Button x:Name="UpFolderButton" Content="Up one folder" Visibility="Collapsed" Click="OnUpFolderClicked" />
+            <TextBlock x:Name="CurrentFolderText" Grid.Column="1" Text="Playlist folders" VerticalAlignment="Center" FontWeight="SemiBold" />
+            <TextBlock x:Name="StatusText" Grid.Column="2" Text="Connect Apple Music in Settings to load your playlists." Opacity="0.72" VerticalAlignment="Center" TextWrapping="Wrap" />
+        </Grid>
+        <Grid Grid.Row="3" ColumnDefinitions="*,*" ColumnSpacing="18">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Folders and playlists" FontWeight="SemiBold" />
+                <ListView
+                    x:Name="PlaylistList"
+                    IsItemClickEnabled="True"
+                    ItemClick="OnPlaylistClicked"
+                    ItemTemplate="{StaticResource MusicResourceRowTemplate}"
+                    SelectionMode="Single" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Spacing="8">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock x:Name="TracksHeading" Text="Tracks" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <Button
+                        x:Name="LoadMoreTracksButton"
+                        Grid.Column="1"
+                        Content="Load more"
+                        Visibility="Collapsed"
+                        Click="OnLoadMoreTracksClicked" />
+                </Grid>
+                <ListView
+                    x:Name="TracksList"
+                    IsItemClickEnabled="True"
+                    ItemClick="OnTrackClicked"
+                    ItemTemplate="{StaticResource MusicResourceRowTemplate}"
+                    SelectionMode="Single" />
+            </StackPanel>
+        </Grid>
+        <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="10">
+            <TextBlock x:Name="SelectedPlaylistText" VerticalAlignment="Center" Opacity="0.72" />
+            <Button x:Name="AddSongButton" Content="Add selected track" IsEnabled="False" Click="OnAddSongClicked" />
+            <Button x:Name="PlayTrackButton" Content="Play preview queue" IsEnabled="False" Click="OnPlayTrackClicked" />
+        </StackPanel>
+    </Grid>
+</Page>

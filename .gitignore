@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+.vs/
+.idea/
+artifacts/
+*.user
+*.suo
+*.msix
+*.msixbundle
+*.appx
+*.appxbundle
+*.cer
+*.pfx
