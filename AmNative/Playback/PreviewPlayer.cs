@@ -49,6 +49,7 @@ public sealed class PreviewPlayer
     public event EventHandler<TrackChangedEventArgs>? TrackChanged;
     public event EventHandler? PlaybackStateChanged;
     public event EventHandler? QueueChanged;
+    public event EventHandler<PlaybackFailedEventArgs>? PlaybackFailed;
 
     public void Attach(MediaPlayerElement element)
     {
@@ -63,6 +64,7 @@ public sealed class PreviewPlayer
         UpdateTransportNavigation();
         controls.ButtonPressed += OnTransportButtonPressed;
         MediaPlayer.PlaybackSession.PlaybackStateChanged += OnPlaybackStateChanged;
+        MediaPlayer.MediaFailed += OnMediaFailed;
     }
 
     public Task PlayPreviewAsync(MusicResource item) => PlayQueueAsync(new[] { item }, item);
@@ -439,6 +441,20 @@ public sealed class PreviewPlayer
             PlaybackStateChanged?.Invoke(this, EventArgs.Empty);
         });
     }
+
+    private void OnMediaFailed(MediaPlayer sender, MediaPlayerFailedEventArgs args)
+    {
+        var dispatcherQueue = _dispatcherQueue;
+        if (dispatcherQueue is null)
+        {
+            return;
+        }
+
+        var message = string.IsNullOrWhiteSpace(args.ErrorMessage)
+            ? args.Error.ToString()
+            : args.ErrorMessage;
+        dispatcherQueue.TryEnqueue(() => PlaybackFailed?.Invoke(this, new PlaybackFailedEventArgs(message)));
+    }
 }
 
 public sealed class TrackChangedEventArgs(MusicResource? resource) : EventArgs
@@ -446,4 +462,9 @@ public sealed class TrackChangedEventArgs(MusicResource? resource) : EventArgs
     public MusicResource? Resource { get; } = resource;
     public string Title => Resource?.Name ?? "Nothing playing";
     public string Artist => Resource?.ArtistName ?? string.Empty;
+}
+
+public sealed class PlaybackFailedEventArgs(string message) : EventArgs
+{
+    public string Message { get; } = message;
 }

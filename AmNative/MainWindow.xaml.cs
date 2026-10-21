@@ -21,6 +21,7 @@ public sealed partial class MainWindow : Window
         SystemBackdrop = new MicaBackdrop { Kind = MicaKind.BaseAlt };
         App.Player.Attach(PlaybackElement);
         App.Player.TrackChanged += OnTrackChanged;
+        App.Player.PlaybackFailed += OnPlaybackFailed;
         App.Player.QueueChanged += OnQueueChanged;
         App.Player.PlaybackStateChanged += OnPlayerPlaybackStateChanged;
         VolumeSlider.Value = App.Player.Volume;
@@ -98,6 +99,8 @@ public sealed partial class MainWindow : Window
 
     private void OnTrackChanged(object? sender, TrackChangedEventArgs args)
     {
+        PlaybackErrorText.Text = "";
+        PlaybackErrorText.Visibility = Visibility.Collapsed;
         NowPlayingTitle.Text = args.Title;
         NowPlayingArtist.Text = args.Artist;
         var artwork = args.Resource?.ArtworkSource;
@@ -106,6 +109,12 @@ public sealed partial class MainWindow : Window
         NowPlayingArtworkPlaceholder.Visibility = artwork is null ? Visibility.Visible : Visibility.Collapsed;
         UpdatePlaybackActions();
         UpdatePlaybackTimeline();
+    }
+
+    private void OnPlaybackFailed(object? sender, PlaybackFailedEventArgs args)
+    {
+        PlaybackErrorText.Text = $"Preview playback failed: {args.Message}";
+        PlaybackErrorText.Visibility = Visibility.Visible;
     }
 
     private void OnNowPlayingArtworkFailed(object sender, ExceptionRoutedEventArgs args)
