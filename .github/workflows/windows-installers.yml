@@ -43,15 +43,25 @@ jobs:
         env:
           PUBLISH_DIR: ${{ github.workspace }}\artifacts\publish\${{ matrix.rid }}
         run: |
-          $webViewReferences = Get-ChildItem AmNative -Recurse -File -Include *.cs,*.xaml,*.csproj |
+          $sourceFiles = Get-ChildItem . -Recurse -File -Include *.cs,*.xaml,*.csproj,*.props,*.targets,packages.lock.json |
+            Where-Object { $_.FullName -notmatch '\\(\.git|artifacts|bin|obj)\\' }
+          $webViewReferences = $sourceFiles |
             Select-String -Pattern 'Microsoft\.Web\.WebView2|Microsoft\.UI\.Xaml\.Controls\.WebView2|\bWebView2\b|CoreWebView2'
           if ($webViewReferences) {
             $webViewReferences | ForEach-Object { Write-Error "$($_.Path):$($_.LineNumber): $($_.Line.Trim())" }
             throw 'The app must not use WebView2.'
           }
 
+          $dependencyManifests = Get-ChildItem $env:PUBLISH_DIR -Recurse -File -Include *.deps.json,packages.lock.json
+          $webViewDependencies = $dependencyManifests |
+            Select-String -Pattern 'Microsoft\.Web\.WebView2|WebView2Loader|CoreWebView2'
+          if ($webViewDependencies) {
+            $webViewDependencies | ForEach-Object { Write-Error "$($_.Path): $($_.Line.Trim())" }
+            throw 'The published app must not depend on the WebView2 SDK.'
+          }
+
           $runtimeFiles = Get-ChildItem $env:PUBLISH_DIR -Recurse -File |
-            Where-Object { $_.Name -in @('msedgewebview2.exe', 'msedge.dll', 'msedge_elf.dll') }
+            Where-Object { $_.Name -match '(?i)(WebView2|msedge|EmbeddedBrowserWebView)' }
           if ($runtimeFiles) {
             $runtimeFiles | ForEach-Object { Write-Error "Unexpected WebView2 runtime file: $($_.FullName)" }
             throw 'The installer must not bundle the WebView2 runtime.'
