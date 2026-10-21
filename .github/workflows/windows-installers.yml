@@ -50,9 +50,105 @@ jobs:
           APP_VERSION: 0.1.${{ github.run_number }}
         run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion="$env:APP_VERSION" /DBuildArch="$env:BUILD_ARCH" /DPublishDir="$env:PUBLISH_DIR" installer\am-native.iss'
 
+      - name: Capture live native app screenshot
+        id: capture-screenshot
+        if: matrix.platform == 'x64'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          Add-Type -TypeDefinition @'
+          using System;
+          using System.Runtime.InteropServices;
+
+          public struct AmNativeWindowRect
+          {
+              public int Left;
+              public int Top;
+              public int Right;
+              public int Bottom;
+          }
+
+          public static class AmNativeScreenshotInterop
+          {
+              [DllImport("user32.dll")]
+              public static extern bool GetWindowRect(IntPtr window, out AmNativeWindowRect rectangle);
+
+              [DllImport("user32.dll")]
+              public static extern bool SetForegroundWindow(IntPtr window);
+          }
+          '@
+
+          $appPath = Join-Path $env:GITHUB_WORKSPACE 'artifacts\publish\win-x64\AmNative.exe'
+          if (-not (Test-Path $appPath)) {
+            throw "Published app not found at $appPath"
+          }
+
+          $app = Start-Process -FilePath $appPath -PassThru
+          try {
+            $windowHandle = [IntPtr]::Zero
+            for ($attempt = 0; $attempt -lt 45; $attempt++) {
+              Start-Sleep -Seconds 1
+              $app.Refresh()
+              if ($app.HasExited) {
+                throw "AM Native exited before its window appeared. Exit code: $($app.ExitCode)"
+              }
+              $windowHandle = $app.MainWindowHandle
+              if ($windowHandle -ne [IntPtr]::Zero) {
+                break
+              }
+            }
+
+            if ($windowHandle -eq [IntPtr]::Zero) {
+              throw 'AM Native did not expose a main window on the Windows runner.'
+            }
+
+            [void][AmNativeScreenshotInterop]::SetForegroundWindow($windowHandle)
+            Start-Sleep -Seconds 2
+            $rectangle = [AmNativeWindowRect]::new()
+            if (-not [AmNativeScreenshotInterop]::GetWindowRect($windowHandle, [ref]$rectangle)) {
+              throw 'Could not read the AM Native window bounds.'
+            }
+
+            $width = $rectangle.Right - $rectangle.Left
+            $height = $rectangle.Bottom - $rectangle.Top
+            if ($width -lt 400 -or $height -lt 300) {
+              throw "AM Native window bounds are too small to capture: ${width}x${height}"
+            }
+
+            $screenshotDirectory = Join-Path $env:GITHUB_WORKSPACE 'artifacts\screenshots'
+            New-Item -ItemType Directory -Path $screenshotDirectory -Force | Out-Null
+            $screenshotPath = Join-Path $screenshotDirectory 'am-native-live.png'
+            $bitmap = [System.Drawing.Bitmap]::new($width, $height)
+            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+            try {
+              $graphics.CopyFromScreen($rectangle.Left, $rectangle.Top, 0, 0, $bitmap.Size)
+              $bitmap.Save($screenshotPath, [System.Drawing.Imaging.ImageFormat]::Png)
+            }
+            finally {
+              $graphics.Dispose()
+              $bitmap.Dispose()
+            }
+
+            Write-Host "Saved live app screenshot to $screenshotPath"
+          }
+          finally {
+            if (-not $app.HasExited) {
+              Stop-Process -Id $app.Id -Force
+            }
+          }
+
       - uses: actions/upload-artifact@v6
         with:
           name: AM-Native-Setup-${{ matrix.platform }}
           path: artifacts/installers/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v6
+        if: matrix.platform == 'x64' && steps.capture-screenshot.outcome == 'success'
+        with:
+          name: AM-Native-Live-Screenshot
+          path: artifacts/screenshots/am-native-live.png
           if-no-files-found: error
           retention-days: 30
