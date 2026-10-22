@@ -344,7 +344,7 @@ public sealed class MusicKitWebPlayer
         if (_environment is null)
         {
             Directory.CreateDirectory(_userDataFolder);
-            _environment = await CoreWebView2Environment.CreateAsync(null, _userDataFolder);
+            _environment = await CoreWebView2Environment.CreateAsync(null, _userDataFolder, null);
         }
 
         await _view.EnsureCoreWebView2Async(_environment);
