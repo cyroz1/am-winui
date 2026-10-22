@@ -29,7 +29,8 @@
             <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <Button x:Name="OpenButton" Content="Open" IsEnabled="False" Click="OnOpenClicked" />
-                    <Button x:Name="PlayButton" Content="Play previews" IsEnabled="False" Click="OnPlayClicked" />
+                    <Button x:Name="OpenAppleMusicButton" Content="Open in Apple Music" IsEnabled="False" Click="OnOpenAppleMusicClicked" />
+                    <Button x:Name="PlayButton" Content="Play selection" IsEnabled="False" Click="OnPlayClicked" />
                     <Button x:Name="QueueButton" Content="Add to queue" IsEnabled="False" Click="OnQueueClicked" />
                     <Button x:Name="AddButton" Content="Add to library" IsEnabled="False" Click="OnAddClicked" />
                     <Button x:Name="PlaylistButton" Content="Add to playlist" IsEnabled="False" Click="OnAddToPlaylistClicked" />

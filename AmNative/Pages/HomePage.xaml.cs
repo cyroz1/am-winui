@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using AmNative.Models;
+using AmNative.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -451,6 +452,20 @@ public sealed partial class HomePage : Page
         }
     }
 
+    private async void OnOpenAppleMusicClicked(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            ActionStatus.Text = await AppleMusicLink.LaunchAsync(_selected, App.MusicApi)
+                ? "Opened the Apple Music link."
+                : "Windows could not open this Apple Music link.";
+        }
+        catch
+        {
+            ActionStatus.Text = "Windows could not open this Apple Music link.";
+        }
+    }
+
     private async void OnAddClicked(object sender, RoutedEventArgs e)
     {
         var items = SelectedLibraryItems;
@@ -523,7 +538,7 @@ public sealed partial class HomePage : Page
 
     private async void OnPlayClicked(object sender, RoutedEventArgs e)
     {
-        var items = SelectedPlaylistItems.Where(static item => item.CanPlayPreview).ToArray();
+        var items = SelectedPlaylistItems.Where(static item => item.CanStartPlayback).ToArray();
         if (items.Length == 0 || _resolvingPlayback)
         {
             return;
@@ -532,14 +547,14 @@ public sealed partial class HomePage : Page
         var startAt = _selected;
         _resolvingPlayback = true;
         PlayButton.IsEnabled = false;
-        ActionStatus.Text = "Resolving preview audio…";
+        ActionStatus.Text = "Preparing Apple Music playback…";
         try
         {
-            var playableItems = await App.MusicApi.ResolvePreviewsForPlaybackAsync(items);
+            var playableItems = await App.ResolvePlaybackItemsAsync(items);
             await App.Player.PlayQueueAsync(playableItems, startAt);
             ActionStatus.Text = playableItems.Count > 1
-                ? "Playing available previews from the selection."
-                : "Playing the available preview.";
+                ? "Playing the selected Apple Music tracks."
+                : "Playing the selected Apple Music track.";
         }
         catch (Exception exception)
         {
@@ -554,7 +569,7 @@ public sealed partial class HomePage : Page
 
     private async void OnQueueClicked(object sender, RoutedEventArgs e)
     {
-        var items = SelectedPlaylistItems.Where(static item => item.CanPlayPreview).ToArray();
+        var items = SelectedPlaylistItems.Where(static item => item.CanStartPlayback).ToArray();
         if (items.Length == 0 || _resolvingPlayback)
         {
             return;
@@ -562,11 +577,11 @@ public sealed partial class HomePage : Page
 
         _resolvingPlayback = true;
         UpdateActions();
-        ActionStatus.Text = "Resolving previews to add to the queue…";
+        ActionStatus.Text = "Preparing tracks to add to the queue…";
         try
         {
-            var count = await App.EnqueuePreviewsAsync(items);
-            ActionStatus.Text = count == 1 ? "Added one preview to the queue." : $"Added {count} previews to the queue.";
+            var count = await App.EnqueuePlaybackItemsAsync(items);
+            ActionStatus.Text = count == 1 ? "Added one track to the queue." : $"Added {count} tracks to the queue.";
         }
         catch (Exception exception)
         {
@@ -582,8 +597,9 @@ public sealed partial class HomePage : Page
     private void UpdateActions()
     {
         OpenButton.IsEnabled = !_loading && _selected is not null && HasRelatedItems(_selected);
-        var playableCount = SelectedPlaylistItems.Count(static item => item.CanPlayPreview);
-        PlayButton.Content = playableCount > 1 ? $"Play {playableCount} previews" : "Play preview";
+        OpenAppleMusicButton.IsEnabled = !_loading && AppleMusicLink.CanOpen(_selected);
+        var playableCount = SelectedPlaylistItems.Count(static item => item.CanStartPlayback);
+        PlayButton.Content = playableCount > 1 ? $"Play {playableCount} tracks" : "Play";
         PlayButton.IsEnabled = !_loading && !_resolvingPlayback && playableCount > 0;
         QueueButton.Content = playableCount > 1 ? $"Add {playableCount} to queue" : "Add to queue";
         QueueButton.IsEnabled = !_loading && !_resolvingPlayback && playableCount > 0;

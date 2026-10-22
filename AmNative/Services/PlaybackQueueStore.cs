@@ -21,6 +21,8 @@ public sealed class PlaybackQueueItem
     public string AlbumName { get; init; } = "";
     public string? ArtworkUrl { get; init; }
     public string? CatalogId { get; init; }
+    public string? PlayParametersId { get; init; }
+    public string? PlayParametersKind { get; init; }
     public string? PreviewUrl { get; init; }
     public string? ShareUrl { get; init; }
     public int? DurationInMillis { get; init; }
@@ -34,6 +36,8 @@ public sealed class PlaybackQueueItem
         AlbumName = resource.AlbumName,
         ArtworkUrl = resource.ArtworkUrl,
         CatalogId = resource.CatalogId,
+        PlayParametersId = resource.PlayParametersId,
+        PlayParametersKind = resource.PlayParametersKind,
         PreviewUrl = resource.PreviewUrl,
         ShareUrl = resource.ShareUrl,
         DurationInMillis = resource.DurationInMillis
@@ -48,6 +52,8 @@ public sealed class PlaybackQueueItem
         AlbumName = AlbumName,
         ArtworkUrl = ArtworkUrl,
         CatalogId = CatalogId,
+        PlayParametersId = PlayParametersId,
+        PlayParametersKind = PlayParametersKind,
         PreviewUrl = PreviewUrl,
         ShareUrl = ShareUrl,
         DurationInMillis = DurationInMillis
@@ -74,12 +80,7 @@ public static class PlaybackQueueStore
             var snapshot = JsonSerializer.Deserialize<PlaybackQueueSnapshot>(File.ReadAllText(path), SerializerOptions);
             if (snapshot is null || snapshot.Items is null ||
                 snapshot.Items.Length > MaximumQueueItems ||
-                snapshot.Items.Any(static item => item is null ||
-                    string.IsNullOrWhiteSpace(item.Id) ||
-                    string.IsNullOrWhiteSpace(item.Type) ||
-                    string.IsNullOrWhiteSpace(item.Name) ||
-                    !Uri.TryCreate(item.PreviewUrl, UriKind.Absolute, out var uri) ||
-                    uri.Scheme != Uri.UriSchemeHttps))
+                snapshot.Items.Any(static item => !IsPlayableQueueItem(item)))
             {
                 return null;
             }
@@ -116,4 +117,11 @@ public static class PlaybackQueueStore
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "AMNative",
         "playback-queue.json");
+
+    private static bool IsPlayableQueueItem(PlaybackQueueItem? item) =>
+        item is not null &&
+        !string.IsNullOrWhiteSpace(item.Id) &&
+        !string.IsNullOrWhiteSpace(item.Type) &&
+        !string.IsNullOrWhiteSpace(item.Name) &&
+        item.ToResource().CanStartPlayback;
 }

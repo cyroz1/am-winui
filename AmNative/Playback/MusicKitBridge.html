@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AM Native Music Player</title>
+  <link rel="stylesheet" href="MusicKitBridge.css">
+  <script src="https://js-cdn.music.apple.com/musickit/v3/musickit.js" async></script>
+  <script src="MusicKitBridge.js" defer></script>
+</head>
+<body>
+  <main id="setup" aria-live="polite">
+    <h1>Apple Music playback</h1>
+    <p id="status">Connecting to Apple Music…</p>
+    <div class="actions">
+      <button id="sign-in" type="button" hidden>Sign in to Apple Music</button>
+      <button id="start" type="button" hidden>Start playback</button>
+      <button id="cancel" type="button" hidden>Cancel</button>
+    </div>
+  </main>
+  <button id="dismiss-video" type="button" aria-label="Hide music video">Close video</button>
+</body>
+</html>

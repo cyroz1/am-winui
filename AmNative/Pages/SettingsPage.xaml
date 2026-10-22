@@ -31,10 +31,11 @@
             </Border>
             <TextBlock Text="Developer token" FontWeight="SemiBold" />
             <PasswordBox x:Name="DeveloperTokenBox" PlaceholderText="Apple Music developer token" />
+            <TextBlock Text="If a pasted token has an origin claim, it must allow https://appassets.amnative for both Apple Music API requests and MusicKit playback." TextWrapping="Wrap" Opacity="0.7" />
             <Border Padding="16" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                 <StackPanel Spacing="10">
                     <TextBlock Text="Or sign developer tokens on this device" FontWeight="SemiBold" />
-                    <TextBlock Text="Use the Team ID, Key ID, and .p8 private key from your Apple Developer account. AM Native signs a one-hour ES256 token locally and keeps the private key in Windows Credential Manager." TextWrapping="Wrap" Opacity="0.72" />
+                    <TextBlock Text="Use the Team ID, Key ID, and .p8 private key from your Apple Developer account. AM Native signs REST tokens and an origin-restricted MusicKit token locally, and keeps the private key in Windows Credential Manager." TextWrapping="Wrap" Opacity="0.72" />
                     <TextBox x:Name="DeveloperTeamIdBox" Header="Team ID" PlaceholderText="Apple Developer Team ID" MaxLength="64" />
                     <TextBox x:Name="DeveloperKeyIdBox" Header="Key ID" PlaceholderText="MusicKit key ID" MaxLength="64" />
                     <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
@@ -47,7 +48,7 @@
             <PasswordBox x:Name="UserTokenBox" PlaceholderText="Optional if supplied in the cookie below" />
             <TextBlock Text="Apple Music web cookie" FontWeight="SemiBold" />
             <PasswordBox x:Name="CookieBox" PlaceholderText="Optional full Cookie header, including media-user-token" />
-            <TextBlock Text="Apple's public Music API requires a developer token. Requests for your library also require a Music User Token. Paste a web cookie header to save its Music User Token separately and retain the full cookie in DPAPI-protected local storage. The REST API client never forwards the cookie header. Apple does not document a native Windows subscription playback SDK, so a web cookie alone cannot enable full-track playback here." TextWrapping="Wrap" Opacity="0.7" />
+            <TextBlock Text="Apple Music API requests use a developer token, and library requests also use a Music User Token. Paste a web cookie header to save its Music User Token separately and retain the full cookie in DPAPI-protected local storage. The REST API client never forwards the cookie header. Full-track playback uses Apple's hosted MusicKit on the Web player inside the shared Microsoft Edge WebView2 runtime." TextWrapping="Wrap" Opacity="0.7" />
             <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button Content="Save securely" Click="OnSaveClicked" />
                 <Button x:Name="TestConnectionButton" Content="Test saved connection" Click="OnTestConnectionClicked" />
@@ -57,7 +58,8 @@
             <Border Padding="16" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                 <StackPanel Spacing="8">
                     <TextBlock Text="Playback" FontWeight="SemiBold" />
-                    <TextBlock Text="Catalog and library access use Apple's documented REST API. Native preview playback and collection queues use Windows Media playback. Apple does not document a native Windows subscription playback SDK; full-track playback remains unavailable until there is a supported native route." TextWrapping="Wrap" Opacity="0.72" />
+                    <TextBlock x:Name="MusicKitPlaybackSummary" TextWrapping="Wrap" Opacity="0.72" />
+                    <Button x:Name="AuthorizeMusicKitButton" Content="Authorize Apple Music playback" HorizontalAlignment="Left" Click="OnAuthorizeMusicKitClicked" />
                 </StackPanel>
             </Border>
         </StackPanel>

@@ -9,6 +9,11 @@ namespace AmNative.Services;
 public sealed class AppleMusicApiClient
 {
     private static readonly Uri ApiRoot = new("https://api.music.apple.com/v1/");
+    private static readonly string[] CatalogSearchResourceTypes =
+    [
+        "songs", "albums", "artists", "playlists", "music-videos", "stations",
+        "activities", "apple-curators", "curators", "record-labels"
+    ];
     private const int MaximumReadRetryAttempts = 2;
     private static readonly TimeSpan MaximumRetryDelay = TimeSpan.FromSeconds(15);
     private readonly CredentialStore _credentials;
@@ -65,7 +70,7 @@ public sealed class AppleMusicApiClient
     public async Task<IReadOnlyList<MusicResource>> SearchCatalogAsync(string term, CancellationToken cancellationToken = default)
     {
         var storefront = await ResolveStorefrontAsync(cancellationToken);
-        var query = $"catalog/{storefront}/search?term={Uri.EscapeDataString(term)}&types=songs,albums,artists,playlists,music-videos,stations&limit=25";
+        var query = $"catalog/{storefront}/search?term={Uri.EscapeDataString(term)}&types={string.Join(',', CatalogSearchResourceTypes)}&limit=25";
         using var request = CreateRequest(HttpMethod.Get, query);
         using var response = await SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
@@ -77,7 +82,7 @@ public sealed class AppleMusicApiClient
         }
 
         var resources = new List<MusicResource>();
-        foreach (var type in new[] { "songs", "albums", "artists", "playlists", "music-videos", "stations" })
+        foreach (var type in CatalogSearchResourceTypes)
         {
             if (!results.TryGetProperty(type, out var collection) ||
                 collection.ValueKind != JsonValueKind.Object ||
@@ -128,7 +133,7 @@ public sealed class AppleMusicApiClient
     public async Task<MusicResourcePage> SearchCatalogPageAsync(string term, CancellationToken cancellationToken = default)
     {
         var storefront = await ResolveStorefrontAsync(cancellationToken);
-        var query = $"catalog/{storefront}/search?term={Uri.EscapeDataString(term)}&types=songs,albums,artists,playlists,music-videos,stations&limit=25";
+        var query = $"catalog/{storefront}/search?term={Uri.EscapeDataString(term)}&types={string.Join(',', CatalogSearchResourceTypes)}&limit=25";
         using var request = CreateRequest(HttpMethod.Get, query);
         using var response = await SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
@@ -143,7 +148,7 @@ public sealed class AppleMusicApiClient
 
         var resources = new List<MusicResource>();
         var nextPages = new List<Uri>();
-        foreach (var type in new[] { "songs", "albums", "artists", "playlists", "music-videos", "stations" })
+        foreach (var type in CatalogSearchResourceTypes)
         {
             if (!results.TryGetProperty(type, out var collection) || collection.ValueKind != JsonValueKind.Object)
             {
@@ -412,12 +417,12 @@ public sealed class AppleMusicApiClient
         return new MusicResourcePage(resources, nextPages);
     }
 
-    public async Task<IReadOnlyList<MusicResource>> GetPlaylistTracksAsync(string playlistId, CancellationToken cancellationToken = default)
-    {
-        var endpoint = $"me/library/playlists/{Uri.EscapeDataString(playlistId)}/tracks?limit=100";
-        var tracks = await GetAllPagesAsync(endpoint, cancellationToken);
-        return await ResolvePreviewsAsync(tracks, cancellationToken);
-    }
+    public Task<IReadOnlyList<MusicResource>> GetPlaylistTracksAsync(
+        string playlistId,
+        CancellationToken cancellationToken = default) =>
+        GetAllPagesAsync(
+            $"me/library/playlists/{Uri.EscapeDataString(playlistId)}/tracks?limit=100",
+            cancellationToken);
 
     public Task<MusicResourcePage> GetPlaylistTracksPageAsync(string playlistId, CancellationToken cancellationToken = default)
     {
@@ -431,40 +436,111 @@ public sealed class AppleMusicApiClient
         return resolved[0];
     }
 
+    public async Task<MusicResource> ResolveAppleMusicLinkAsync(MusicResource resource, CancellationToken cancellationToken = default)
+    {
+        if (resource.Type is not ("library-songs" or "library-music-videos"))
+        {
+            return resource;
+        }
+
+        var resolved = await ResolvePreviewsAsync(new[] { resource }, cancellationToken, resolveAppleMusicLink: true);
+        return resolved[0];
+    }
+
     public Task<IReadOnlyList<MusicResource>> ResolvePreviewsForPlaybackAsync(
         IEnumerable<MusicResource> resources,
         CancellationToken cancellationToken = default) =>
         ResolvePreviewsAsync(resources.ToArray(), cancellationToken);
 
+    public async Task<IReadOnlyList<MusicResource>> ResolvePlaybackItemsAsync(
+        IEnumerable<MusicResource> resources,
+        CancellationToken cancellationToken = default)
+    {
+        const int libraryVideoCatalogBatchThreshold = 4;
+        var candidates = resources.Where(static item => item.CanStartPlayback).ToArray();
+        var hasDeveloperToken = _credentials.HasDeveloperToken;
+        var libraryVideosNeedingCatalog = hasDeveloperToken && _credentials.HasUserCredential
+            ? candidates.Count(static item => item.Type == "library-music-videos" &&
+                                              string.IsNullOrWhiteSpace(item.CatalogId))
+            : 0;
+        // Direct lookup keeps small selections light; catalog IDs let MusicKit batch larger video queues.
+        var shouldResolveLibraryVideosInBatch = libraryVideosNeedingCatalog >= libraryVideoCatalogBatchThreshold;
+        var itemsNeedingResolution = candidates
+            .Where(item => item.Type is "library-songs" or "library-music-videos")
+            .Where(item => item.Type switch
+            {
+                "library-songs" => hasDeveloperToken ? !item.CanPlayInMusicKit : !item.HasPlayablePreview,
+                "library-music-videos" => hasDeveloperToken
+                    ? shouldResolveLibraryVideosInBatch && string.IsNullOrWhiteSpace(item.CatalogId)
+                    : !item.HasPlayablePreview,
+                _ => false
+            })
+            .ToArray();
+        IReadOnlyList<MusicResource> resolvedDetails = itemsNeedingResolution.Length > 0
+            ? await ResolvePreviewsAsync(
+                itemsNeedingResolution,
+                cancellationToken,
+                resolvePreview: !hasDeveloperToken)
+            : Array.Empty<MusicResource>();
+        var detailsById = resolvedDetails
+            .GroupBy(static item => (item.Type, item.Id))
+            .ToDictionary(static group => group.Key, static group => group.First());
+        var resolvedItems = candidates
+            .Select(item => detailsById.TryGetValue((item.Type, item.Id), out var resolved) ? resolved : item)
+            .ToArray();
+        return resolvedItems
+            .Where(static item => item.CanPlayInMusicKit || item.HasPlayablePreview)
+            .ToArray();
+    }
+
+    public Task<IReadOnlyList<MusicResource>> ResolveAppleMusicLinksForPlaybackAsync(
+        IEnumerable<MusicResource> resources,
+        CancellationToken cancellationToken = default) =>
+        ResolvePreviewsAsync(resources.ToArray(), cancellationToken, resolveAppleMusicLink: true);
+
     private async Task<IReadOnlyList<MusicResource>> ResolvePreviewsAsync(
         IReadOnlyList<MusicResource> resources,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool resolveAppleMusicLink = false,
+        bool resolvePreview = true)
     {
         var libraryItems = resources
             .Where(static item => item.Type is "library-songs" or "library-music-videos")
-            .Where(static item =>
-                string.IsNullOrWhiteSpace(item.PreviewUrl) &&
-                !string.IsNullOrWhiteSpace(item.CatalogId))
+            .Where(item => resolveAppleMusicLink
+                ? !AppleMusicLink.TryGetShareUri(item, out _)
+                : string.IsNullOrWhiteSpace(item.PreviewUrl) ||
+                  string.IsNullOrWhiteSpace(item.CatalogId))
             .ToArray();
         if (libraryItems.Length == 0)
         {
             return resources;
         }
 
-        var storefront = await ResolveStorefrontAsync(cancellationToken);
-        var catalogItems = new Dictionary<(string Type, string Id), MusicResource>();
-        foreach (var group in libraryItems.GroupBy(static item => item.Type))
+        var catalogIdsByLibraryItem = new Dictionary<(string Type, string Id), string>();
+        var playParametersByLibraryItem = new Dictionary<(string Type, string Id), (string Id, string Kind)>();
+        foreach (var item in libraryItems.Where(static item => !string.IsNullOrWhiteSpace(item.CatalogId)))
         {
-            var catalogType = group.Key == "library-songs" ? "songs" : "music-videos";
-            var catalogIds = group
-                .Select(static item => item.CatalogId!)
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
-            var batchSize = catalogType == "music-videos" ? 100 : 300;
-            foreach (var idBatch in catalogIds.Chunk(batchSize))
+            catalogIdsByLibraryItem[(item.Type, item.Id)] = item.CatalogId!;
+            if (!string.IsNullOrWhiteSpace(item.PlayParametersId) &&
+                !string.IsNullOrWhiteSpace(item.PlayParametersKind))
             {
-                var ids = string.Join(",", idBatch.Select(Uri.EscapeDataString));
-                using var request = CreateRequest(HttpMethod.Get, $"catalog/{storefront}/{catalogType}?ids={ids}");
+                playParametersByLibraryItem[(item.Type, item.Id)] =
+                    (item.PlayParametersId, item.PlayParametersKind);
+            }
+        }
+        var unidentifiedItems = libraryItems
+            .Where(static item => string.IsNullOrWhiteSpace(item.CatalogId))
+            .ToArray();
+        foreach (var group in unidentifiedItems.GroupBy(static item => item.Type))
+        {
+            var libraryType = group.Key == "library-songs" ? "songs" : "music-videos";
+            var batchSize = libraryType == "songs" ? 300 : 100;
+            foreach (var itemBatch in group.DistinctBy(static item => item.Id).Chunk(batchSize))
+            {
+                var ids = string.Join(",", itemBatch.Select(static item => Uri.EscapeDataString(item.Id)));
+                using var request = CreateRequest(
+                    HttpMethod.Get,
+                    $"me/library/{libraryType}?ids={ids}&include=catalog");
                 using var response = await SendAsync(request, cancellationToken);
                 if (response.StatusCode == HttpStatusCode.NotFound)
                 {
@@ -481,11 +557,82 @@ public sealed class AppleMusicApiClient
                     continue;
                 }
 
-                foreach (var catalogItem in data.EnumerateArray().Select(MusicResource.FromJson))
+                foreach (var libraryResource in data.EnumerateArray())
                 {
-                    if (!string.IsNullOrWhiteSpace(catalogItem.PreviewUrl))
+                    var libraryItem = MusicResource.FromJson(libraryResource);
+                    if (!string.IsNullOrWhiteSpace(libraryItem.PlayParametersId) &&
+                        !string.IsNullOrWhiteSpace(libraryItem.PlayParametersKind))
                     {
-                        catalogItems[(catalogType, catalogItem.Id)] = catalogItem;
+                        playParametersByLibraryItem[(libraryItem.Type, libraryItem.Id)] =
+                            (libraryItem.PlayParametersId, libraryItem.PlayParametersKind);
+                    }
+
+                    var catalogId = string.IsNullOrWhiteSpace(libraryItem.CatalogId)
+                        ? ReadCatalogRelationshipId(libraryResource)
+                        : libraryItem.CatalogId;
+                    if (!string.IsNullOrWhiteSpace(catalogId))
+                    {
+                        catalogIdsByLibraryItem[(libraryItem.Type, libraryItem.Id)] = catalogId;
+                    }
+                }
+            }
+        }
+
+        var identifiedItems = libraryItems
+            .Where(item => catalogIdsByLibraryItem.ContainsKey((item.Type, item.Id)))
+            .ToArray();
+        var catalogItemsNeeded = identifiedItems
+            .Where(item => resolveAppleMusicLink || (resolvePreview && string.IsNullOrWhiteSpace(item.PreviewUrl)))
+            .ToArray();
+        var catalogMatches = new Dictionary<(string Type, string Id), MusicResource>();
+        if (catalogItemsNeeded.Length > 0)
+        {
+            var storefront = await ResolveStorefrontAsync(cancellationToken);
+            var catalogItems = new Dictionary<(string Type, string Id), MusicResource>();
+            foreach (var group in catalogItemsNeeded.GroupBy(static item => item.Type))
+            {
+                var catalogType = group.Key == "library-songs" ? "songs" : "music-videos";
+                var catalogIds = group
+                    .Select(item => catalogIdsByLibraryItem[(item.Type, item.Id)])
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+                var batchSize = catalogType == "music-videos" ? 100 : 300;
+                foreach (var idBatch in catalogIds.Chunk(batchSize))
+                {
+                    var ids = string.Join(",", idBatch.Select(Uri.EscapeDataString));
+                    using var request = CreateRequest(HttpMethod.Get, $"catalog/{storefront}/{catalogType}?ids={ids}");
+                    using var response = await SendAsync(request, cancellationToken);
+                    if (response.StatusCode == HttpStatusCode.NotFound)
+                    {
+                        continue;
+                    }
+
+                    await EnsureSuccessAsync(response, cancellationToken);
+
+                    using var document = await JsonDocument.ParseAsync(
+                        await response.Content.ReadAsStreamAsync(cancellationToken),
+                        cancellationToken: cancellationToken);
+                    if (!document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+                    {
+                        continue;
+                    }
+
+                    foreach (var catalogItem in data.EnumerateArray().Select(MusicResource.FromJson))
+                    {
+                        if (!string.IsNullOrWhiteSpace(catalogItem.PreviewUrl) ||
+                            !string.IsNullOrWhiteSpace(catalogItem.ShareUrl))
+                        {
+                            catalogItems[(catalogType, catalogItem.Id)] = catalogItem;
+                        }
+                    }
+                }
+
+                foreach (var item in group)
+                {
+                    var catalogId = catalogIdsByLibraryItem[(item.Type, item.Id)];
+                    if (catalogItems.TryGetValue((catalogType, catalogId), out var catalogItem))
+                    {
+                        catalogMatches[(item.Type, item.Id)] = catalogItem;
                     }
                 }
             }
@@ -493,19 +640,51 @@ public sealed class AppleMusicApiClient
 
         return resources.Select(item =>
         {
-            var catalogType = item.Type switch
-            {
-                "library-songs" => "songs",
-                "library-music-videos" => "music-videos",
-                _ => null
-            };
-            return catalogType is not null &&
-                   string.IsNullOrWhiteSpace(item.PreviewUrl) &&
-                   item.CatalogId is not null &&
-                   catalogItems.TryGetValue((catalogType, item.CatalogId), out var catalogItem)
-                ? item.WithPreviewUrl(catalogItem.PreviewUrl, catalogItem.ShareUrl)
+            var key = (item.Type, item.Id);
+            var resolvedItem = playParametersByLibraryItem.TryGetValue(key, out var playParameters)
+                ? item.WithPlaybackDetails(
+                    null,
+                    playParametersId: playParameters.Id,
+                    playParametersKind: playParameters.Kind)
                 : item;
+
+            if (catalogMatches.TryGetValue(key, out var catalogItem))
+            {
+                return resolvedItem.WithPlaybackDetails(
+                    catalogItem.PreviewUrl,
+                    catalogItem.ShareUrl,
+                    catalogIdsByLibraryItem[key]);
+            }
+
+            return catalogIdsByLibraryItem.TryGetValue(key, out var catalogId)
+                ? resolvedItem.WithPlaybackDetails(null, null, catalogId)
+                : resolvedItem;
         }).ToArray();
+    }
+
+    private static string? ReadCatalogRelationshipId(JsonElement libraryResource)
+    {
+        if (libraryResource.ValueKind != JsonValueKind.Object ||
+            !libraryResource.TryGetProperty("relationships", out var relationships) ||
+            relationships.ValueKind != JsonValueKind.Object ||
+            !relationships.TryGetProperty("catalog", out var catalogRelationship) ||
+            catalogRelationship.ValueKind != JsonValueKind.Object ||
+            !catalogRelationship.TryGetProperty("data", out var data))
+        {
+            return null;
+        }
+
+        var relatedResource = data.ValueKind switch
+        {
+            JsonValueKind.Array when data.GetArrayLength() > 0 => data[0],
+            JsonValueKind.Object => data,
+            _ => default
+        };
+        return relatedResource.ValueKind == JsonValueKind.Object &&
+               relatedResource.TryGetProperty("id", out var id) &&
+               id.ValueKind == JsonValueKind.String
+            ? id.GetString()
+            : null;
     }
 
     public Task<MusicResourcePage> GetPlaylistFolderContentsPageAsync(string folderId, CancellationToken cancellationToken = default)
@@ -517,8 +696,7 @@ public sealed class AppleMusicApiClient
     public async Task<IReadOnlyList<MusicResource>> GetRelatedResourcesAsync(MusicResource resource, CancellationToken cancellationToken = default)
     {
         var endpoint = await GetRelatedResourcesEndpointAsync(resource, cancellationToken);
-        var related = await GetAllPagesAsync(endpoint, cancellationToken);
-        return await ResolvePreviewsAsync(related, cancellationToken);
+        return await GetAllPagesAsync(endpoint, cancellationToken);
     }
 
     public async Task<MusicResourcePage> GetRelatedResourcesPageAsync(MusicResource resource, CancellationToken cancellationToken = default)
@@ -532,6 +710,26 @@ public sealed class AppleMusicApiClient
         string view,
         CancellationToken cancellationToken = default) =>
         GetArtistViewPageAsync(artist, view, cancellationToken);
+
+    public async Task<MusicResourcePage> GetRecordLabelCatalogViewPageAsync(
+        MusicResource recordLabel,
+        string view,
+        CancellationToken cancellationToken = default)
+    {
+        if (recordLabel.Type != "record-labels")
+        {
+            throw new InvalidOperationException("Record label views are available for catalog record labels.");
+        }
+
+        if (view is not ("latest-releases" or "top-releases"))
+        {
+            throw new ArgumentOutOfRangeException(nameof(view), "Apple Music does not document this record label view.");
+        }
+
+        var storefront = await ResolveStorefrontAsync(cancellationToken);
+        var endpoint = $"catalog/{storefront}/record-labels/{Uri.EscapeDataString(recordLabel.Id)}/view/{view}";
+        return await GetApiResourcePageAsync(new Uri(ApiRoot, endpoint), cancellationToken);
+    }
 
     public async Task<IReadOnlyList<MusicResource>> GetArtistCatalogViewAsync(
         MusicResource artist,
@@ -724,8 +922,12 @@ public sealed class AppleMusicApiClient
                 return $"catalog/{await ResolveStorefrontAsync(cancellationToken)}/playlists/{id}/tracks?limit=100";
             case "library-playlists":
                 return $"me/library/playlists/{id}/tracks?limit=100";
+            case "activities":
+            case "apple-curators":
+            case "curators":
+                return $"catalog/{await ResolveStorefrontAsync(cancellationToken)}/{resource.Type}/{id}/playlists?limit=10";
             default:
-                throw new InvalidOperationException("This Apple Music item has no browsable album, artist, or playlist contents.");
+                throw new InvalidOperationException("This Apple Music item has no browsable content.");
         }
     }
 
@@ -1035,6 +1237,7 @@ public sealed class AppleMusicApiClient
             foreach (var type in new[]
                      {
                          "songs", "albums", "artists", "playlists", "music-videos", "stations",
+                         "activities", "apple-curators", "curators", "record-labels",
                          "library-songs", "library-albums", "library-artists", "library-playlists", "library-music-videos"
                      })
             {
@@ -1238,6 +1441,7 @@ public sealed class AppleMusicApiClient
         }
 
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", developerToken);
+        request.Headers.TryAddWithoutValidation("Origin", CredentialStore.MusicKitWebOrigin);
         if (!string.IsNullOrWhiteSpace(userToken))
         {
             request.Headers.TryAddWithoutValidation("Music-User-Token", userToken);

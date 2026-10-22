@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using AmNative.Models;
+using AmNative.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
@@ -16,6 +17,7 @@ public sealed partial class ResourcePage : Page
     private AlbumView _albumView;
     private SongView _songView;
     private MusicVideoView _musicVideoView;
+    private string _recordLabelView = "latest-releases";
     private bool _loading;
     private bool _addingToLibrary;
     private bool _addingToFavorites;
@@ -50,6 +52,7 @@ public sealed partial class ResourcePage : Page
         _albumView = AlbumView.Tracks;
         _songView = SongView.Albums;
         _musicVideoView = MusicVideoView.Albums;
+        _recordLabelView = "latest-releases";
         ArtistViewsBox.SelectedItem = ArtistViewsBox.Items
             .OfType<ComboBoxItem>()
             .FirstOrDefault(item => string.Equals(item.Tag as string, GetArtistViewKey(_artistView), StringComparison.Ordinal));
@@ -62,6 +65,9 @@ public sealed partial class ResourcePage : Page
         MusicVideoViewsBox.SelectedItem = MusicVideoViewsBox.Items
             .OfType<ComboBoxItem>()
             .FirstOrDefault(item => string.Equals(item.Tag as string, GetMusicVideoViewKey(_musicVideoView), StringComparison.Ordinal));
+        RecordLabelViewsBox.SelectedItem = RecordLabelViewsBox.Items
+            .OfType<ComboBoxItem>()
+            .FirstOrDefault(item => string.Equals(item.Tag as string, _recordLabelView, StringComparison.Ordinal));
         _related.Clear();
         UpdateActions();
 
@@ -107,6 +113,10 @@ public sealed partial class ResourcePage : Page
                         ? $"Loading {GetSongViewLabel(_songView)}…"
                     : IsMusicVideoResource(resource)
                         ? $"Loading {GetMusicVideoViewLabel(_musicVideoView)}…"
+                    : IsRecordLabel(resource)
+                        ? $"Loading {GetRecordLabelViewLabel(_recordLabelView)}…"
+                    : IsCuratorCollection(resource)
+                        ? "Loading playlists…"
                     : IsArtist(resource) ? "Loading albums…" : "Loading tracks…";
         try
         {
@@ -120,6 +130,8 @@ public sealed partial class ResourcePage : Page
                         ? await GetSongViewPageAsync(resource)
                     : IsMusicVideoResource(resource)
                         ? await GetMusicVideoViewPageAsync(resource)
+                    : IsRecordLabel(resource)
+                        ? await App.MusicApi.GetRecordLabelCatalogViewPageAsync(resource, _recordLabelView)
                         : await App.MusicApi.GetRelatedResourcesPageAsync(resource);
             if (!ReferenceEquals(_resource, resource))
             {
@@ -133,16 +145,17 @@ public sealed partial class ResourcePage : Page
 
             foreach (var item in page.Items)
             {
-                if (!_related.Any(existing => existing.Id == item.Id && existing.Type == item.Type))
-                {
-                    _related.Add(item);
-                }
+                _related.Add(item);
             }
 
             _nextPage = page.NextPages.FirstOrDefault();
             StatusText.Text = _related.Count == 0
                 ? IsCatalogArtist(resource)
                     ? $"No {GetArtistViewLabel(_artistView)} were returned for this artist."
+                    : IsRecordLabel(resource)
+                        ? $"No {GetRecordLabelViewLabel(_recordLabelView)} were returned for this record label."
+                    : IsCuratorCollection(resource)
+                        ? "No playlists were returned for this curator or activity."
                     : CanBrowseAlbumCatalogViews(resource) && _albumView != AlbumView.Tracks
                         ? $"No {GetAlbumViewLabel(_albumView)} were returned for this album."
                     : IsSongResource(resource)
@@ -152,6 +165,10 @@ public sealed partial class ResourcePage : Page
                         : IsArtist(resource) ? "No albums were returned for this artist." : "No tracks were returned for this item."
                 : IsCatalogArtist(resource)
                     ? $"{_related.Count} {GetArtistViewLabel(_artistView)}"
+                    : IsRecordLabel(resource)
+                        ? $"{_related.Count} {GetRecordLabelViewLabel(_recordLabelView)}"
+                    : IsCuratorCollection(resource)
+                        ? $"{_related.Count} playlists"
                     : CanBrowseAlbumCatalogViews(resource) && _albumView != AlbumView.Tracks
                         ? $"{_related.Count} {GetAlbumViewLabel(_albumView)}"
                     : IsSongResource(resource)
@@ -417,6 +434,27 @@ public sealed partial class ResourcePage : Page
         }
     }
 
+    private async void OnRecordLabelViewSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (RecordLabelViewsBox.SelectedItem is not ComboBoxItem { Tag: string view } ||
+            view is not ("latest-releases" or "top-releases") ||
+            _loading || _resource is null || !IsRecordLabel(_resource) ||
+            string.Equals(_recordLabelView, view, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var resource = _resource;
+        _recordLabelView = view;
+        _nextPage = null;
+        _selected = null;
+        RelatedList.SelectedItems.Clear();
+        _related.Clear();
+        ActionStatus.Text = "";
+        UpdateActions();
+        await LoadRelatedPageAsync(resource, append: false);
+    }
+
     private async Task SetArtistViewAsync(ArtistView view)
     {
         if (_loading || _resource is null || !IsCatalogArtist(_resource) || _artistView == view)
@@ -544,6 +582,34 @@ public sealed partial class ResourcePage : Page
         }
     }
 
+    private async void OnOpenParentAppleMusicClicked(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            ActionStatus.Text = await AppleMusicLink.LaunchAsync(_resource, App.MusicApi)
+                ? "Opened the Apple Music link."
+                : "Windows could not open this Apple Music link.";
+        }
+        catch
+        {
+            ActionStatus.Text = "Windows could not open this Apple Music link.";
+        }
+    }
+
+    private async void OnOpenAppleMusicClicked(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            ActionStatus.Text = await AppleMusicLink.LaunchAsync(_selected, App.MusicApi)
+                ? "Opened the Apple Music link."
+                : "Windows could not open this Apple Music link.";
+        }
+        catch
+        {
+            ActionStatus.Text = "Windows could not open this Apple Music link.";
+        }
+    }
+
     private async void OnPlayClicked(object sender, RoutedEventArgs e)
     {
         if (_selected is null || _resource is null || _loading)
@@ -563,8 +629,8 @@ public sealed partial class ResourcePage : Page
             IReadOnlyList<MusicResource> items;
             if (queueSelection)
             {
-                items = await App.MusicApi.ResolvePreviewsForPlaybackAsync(
-                    selectedItems.Where(static item => item.CanPlayPreview));
+                items = await App.ResolvePlaybackItemsAsync(
+                    selectedItems.Where(static item => item.CanStartPlayback));
             }
             else if (IsCatalogArtist(resource) && IsArtistViewPlayable(_artistView))
             {
@@ -592,22 +658,29 @@ public sealed partial class ResourcePage : Page
                 return;
             }
 
+            items = await App.ResolvePlaybackItemsAsync(items);
+            if (items.Count == 0)
+            {
+                ActionStatus.Text = "No tracks in this selection are available for playback.";
+                return;
+            }
+
             await App.Player.PlayQueueAsync(items, selected);
             ActionStatus.Text = queueSelection
-                ? "Playing available previews from the selection."
+                ? "Playing the selected Apple Music tracks."
                 : IsCatalogArtist(resource) && _artistView == ArtistView.TopSongs
-                    ? "Playing available top song previews from the selected track."
+                    ? "Playing top songs from the selected track."
                     : IsCatalogArtist(resource) && IsArtistVideoView(_artistView)
-                        ? "Playing available music video previews from the selected video."
+                        ? "Playing music videos related to the selected video."
                         : IsAlbumVideoView(resource)
-                            ? "Playing available music video previews from this album."
+                            ? "Playing music videos from this album."
                         : IsSongVideoView(resource)
-                            ? "Playing available music video previews from this song."
+                            ? "Playing music videos from this song."
                         : IsMusicVideoResource(resource)
                             ? $"Playing the selected item from the music video’s {GetMusicVideoViewLabel(_musicVideoView)}."
                             : IsLibrarySongWithCatalogId(resource) && _songView == SongView.Catalog
-                                ? "Playing the catalog song preview."
-                                : "Playing the selected preview and following tracks.";
+                                ? "Playing the catalog song."
+                                : "Playing the selected track and following tracks.";
         }
         catch (Exception exception)
         {
@@ -623,7 +696,7 @@ public sealed partial class ResourcePage : Page
 
     private async void OnPlayParentClicked(object sender, RoutedEventArgs e)
     {
-        if (_resource is null || !(IsSongResource(_resource) || IsMusicVideoResource(_resource)) || !_resource.CanPlayPreview || _loading)
+        if (_resource is null || !(IsSongResource(_resource) || IsMusicVideoResource(_resource)) || !_resource.CanStartPlayback || _loading)
         {
             return;
         }
@@ -632,10 +705,10 @@ public sealed partial class ResourcePage : Page
         var isMusicVideo = IsMusicVideoResource(previewResource);
         _loading = true;
         UpdateActions();
-        ActionStatus.Text = isMusicVideo ? "Resolving music video preview…" : "Resolving song preview…";
+        ActionStatus.Text = isMusicVideo ? "Preparing music video playback…" : "Preparing song playback…";
         try
         {
-            var items = await App.MusicApi.ResolvePreviewsForPlaybackAsync(new[] { previewResource });
+            var items = await App.ResolvePlaybackItemsAsync(new[] { previewResource });
             if (!ReferenceEquals(_resource, previewResource))
             {
                 return;
@@ -644,13 +717,13 @@ public sealed partial class ResourcePage : Page
             if (items.Count == 0)
             {
                 ActionStatus.Text = isMusicVideo
-                    ? "Apple Music did not provide a preview for this music video."
-                    : "Apple Music did not provide a preview for this song.";
+                    ? "Apple Music could not prepare this music video for playback."
+                    : "Apple Music could not prepare this song for playback.";
                 return;
             }
 
             await App.Player.PlayQueueAsync(items, items[0]);
-            ActionStatus.Text = isMusicVideo ? "Playing the music video preview." : "Playing the song preview.";
+            ActionStatus.Text = isMusicVideo ? "Playing the music video." : "Playing the song.";
         }
         catch (Exception exception)
         {
@@ -665,7 +738,7 @@ public sealed partial class ResourcePage : Page
 
     private async void OnQueueClicked(object sender, RoutedEventArgs e)
     {
-        var items = SelectedPlaylistItems.Where(static item => item.CanPlayPreview).ToArray();
+        var items = SelectedPlaylistItems.Where(static item => item.CanStartPlayback).ToArray();
         if (items.Length == 0 || _loading)
         {
             return;
@@ -674,11 +747,11 @@ public sealed partial class ResourcePage : Page
         _loading = true;
         RelatedList.IsEnabled = false;
         UpdateActions();
-        ActionStatus.Text = "Resolving previews to add to the queue…";
+        ActionStatus.Text = "Preparing tracks to add to the queue…";
         try
         {
-            var count = await App.EnqueuePreviewsAsync(items);
-            ActionStatus.Text = count == 1 ? "Added one preview to the queue." : $"Added {count} previews to the queue.";
+            var count = await App.EnqueuePlaybackItemsAsync(items);
+            ActionStatus.Text = count == 1 ? "Added one track to the queue." : $"Added {count} tracks to the queue.";
         }
         catch (Exception exception)
         {
@@ -723,16 +796,23 @@ public sealed partial class ResourcePage : Page
                 return;
             }
 
+            items = await App.ResolvePlaybackItemsAsync(items);
+            if (items.Count == 0)
+            {
+                ActionStatus.Text = "This collection has no tracks available for playback.";
+                return;
+            }
+
             await App.Player.PlayQueueAsync(items);
             ActionStatus.Text = artistView
-                ? $"Playing available previews from {GetArtistViewLabel(_artistView)}."
+                ? $"Playing Apple Music tracks from {GetArtistViewLabel(_artistView)}."
                 : albumVideoView
-                    ? "Playing available music video previews from this album."
+                    ? "Playing music videos from this album."
                     : songVideoView
-                        ? "Playing available music video previews from this song."
+                        ? "Playing music videos from this song."
                     : musicVideoView
-                        ? $"Playing available previews from the music video’s {GetMusicVideoViewLabel(_musicVideoView)}."
-                        : "Playing available previews in this collection.";
+                        ? $"Playing Apple Music tracks from the music video’s {GetMusicVideoViewLabel(_musicVideoView)}."
+                        : "Playing tracks in this collection.";
         }
         catch (Exception exception)
         {
@@ -826,6 +906,7 @@ public sealed partial class ResourcePage : Page
 
     private void UpdateActions()
     {
+        OpenParentAppleMusicButton.IsEnabled = !_loading && AppleMusicLink.CanOpen(_resource);
         AddParentButton.IsEnabled = !_loading && !_addingToLibrary && _resource?.CanBeAddedToLibrary == true;
         FavoriteParentButton.Content = _resource?.IsFavorited == true ? "Already favorited" : "Add to favorites";
         FavoriteParentButton.IsEnabled = !_loading && !_addingToFavorites &&
@@ -844,21 +925,24 @@ public sealed partial class ResourcePage : Page
         MusicVideoViewsBox.IsEnabled = !_loading;
         MusicVideoSongsItem.Visibility = IsCatalogMusicVideo(_resource) ? Visibility.Visible : Visibility.Collapsed;
         MusicVideoCatalogItem.Visibility = IsLibraryMusicVideoWithCatalogId(_resource) ? Visibility.Visible : Visibility.Collapsed;
+        RecordLabelViewSelector.Visibility = IsRecordLabel(_resource) ? Visibility.Visible : Visibility.Collapsed;
+        RecordLabelViewsBox.IsEnabled = !_loading;
         LoadMoreButton.Visibility = _nextPage is null ? Visibility.Collapsed : Visibility.Visible;
         LoadMoreButton.IsEnabled = !_loading && _nextPage is not null;
         OpenButton.IsEnabled = !_loading && _selected is not null && HasRelatedItems(_selected);
+        OpenAppleMusicButton.IsEnabled = !_loading && AppleMusicLink.CanOpen(_selected);
         PlayParentButton.Visibility = IsSongResource(_resource) || IsMusicVideoResource(_resource)
             ? Visibility.Visible
             : Visibility.Collapsed;
-        PlayParentButton.Content = IsMusicVideoResource(_resource) ? "Play video preview" : "Play song preview";
-        PlayParentButton.IsEnabled = !_loading && _resource?.CanPlayPreview == true;
+        PlayParentButton.Content = IsMusicVideoResource(_resource) ? "Play video" : "Play song";
+        PlayParentButton.IsEnabled = !_loading && _resource?.CanStartPlayback == true;
         PlayAllButton.Content = GetPlayAllLabel();
         PlayAllButton.IsEnabled = !_loading && _related.Count > 0 && CanPlayAllFromCurrentView();
         var selectedItemCount = SelectedPlaylistItems.Count;
-        var playableCount = SelectedPlaylistItems.Count(static item => item.CanPlayPreview);
-        var previewLabel = playableCount == 1 ? "preview" : "previews";
+        var playableCount = SelectedPlaylistItems.Count(static item => item.CanStartPlayback);
+        var previewLabel = playableCount == 1 ? "track" : "tracks";
         PlayButton.Content = selectedItemCount > 1
-            ? playableCount > 0 ? $"Play {playableCount} selected {previewLabel}" : "No selected previews"
+            ? playableCount > 0 ? $"Play {playableCount} selected {previewLabel}" : "No playable tracks selected"
             : "Play from here";
         PlayButton.IsEnabled = !_loading && playableCount > 0;
         QueueButton.Content = playableCount > 1 ? $"Add {playableCount} to queue" : "Add to queue";
@@ -886,6 +970,11 @@ public sealed partial class ResourcePage : Page
 
     private static bool IsCatalogArtist(MusicResource? resource) => resource?.Type is "artists" or "artist";
 
+    private static bool IsRecordLabel(MusicResource? resource) => resource?.Type is "record-labels";
+
+    private static bool IsCuratorCollection(MusicResource? resource) => resource?.Type is
+        "activities" or "apple-curators" or "curators";
+
     private static bool IsAlbumCollection(MusicResource? resource) => resource?.Type is
         "albums" or "album" or "library-albums";
 
@@ -900,24 +989,31 @@ public sealed partial class ResourcePage : Page
     private string GetPlayAllLabel() => IsCatalogArtist(_resource)
         ? GetArtistViewPlayAllLabel(_artistView)
         : IsAlbumVideoView(_resource) || IsSongVideoView(_resource)
-            ? "Play all music video previews"
+            ? "Play all music videos"
         : IsMusicVideoPlayableView(_resource) && _musicVideoView == MusicVideoView.Songs
-            ? "Play all related song previews"
+            ? "Play all related songs"
         : IsMusicVideoPlayableView(_resource)
-            ? "Play music video preview"
-            : "Play all previews";
+            ? "Play music video"
+            : "Play all";
 
     private static bool HasRelatedItems(MusicResource resource) => resource.Type is
         "albums" or "album" or "library-albums" or "artists" or "artist" or "library-artists" or
         "playlists" or "playlist" or "library-playlists" or "songs" or "song" or "library-songs" or
-        "music-videos" or "music-video" or "library-music-videos";
+        "music-videos" or "music-video" or "library-music-videos" or "activities" or
+        "apple-curators" or "curators" or "record-labels";
+
+    private static string GetRecordLabelViewLabel(string view) => view switch
+    {
+        "top-releases" => "top releases",
+        _ => "latest releases"
+    };
 
     private static string GetArtistViewPlayAllLabel(ArtistView view) => view switch
     {
         ArtistView.TopSongs => "Play all top songs",
-        ArtistView.TopMusicVideos => "Play all music video previews",
-        ArtistView.FeaturedMusicVideos => "Play all featured video previews",
-        _ => "Play all previews"
+        ArtistView.TopMusicVideos => "Play all music videos",
+        ArtistView.FeaturedMusicVideos => "Play all featured videos",
+        _ => "Play all"
     };
 
     private enum ArtistView

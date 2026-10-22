@@ -2,10 +2,10 @@
     x:Class="AmNative.Pages.SearchPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid Padding="32,28" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" RowSpacing="16">
+    <Grid Padding="32,28" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" RowSpacing="16">
         <StackPanel Spacing="4">
             <TextBlock Text="Search Apple Music" FontSize="30" FontWeight="Bold" />
-            <TextBlock Text="Find songs, albums, artists, playlists, music videos, and radio stations. Filter results by genre, add eligible items to your library, favorites, or playlists, and rate supported content." Opacity="0.68" />
+            <TextBlock Text="Find songs, albums, artists, playlists, music videos, radio stations, editorial activities, curators, and record labels. Filter results by type or genre, add eligible items to your library, favorites, or playlists, and rate supported content." Opacity="0.68" />
         </StackPanel>
         <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="10">
             <AutoSuggestBox
@@ -25,29 +25,59 @@
             </ComboBox>
             <Button x:Name="BrowseChartButton" Content="Browse chart" Click="OnBrowseChartClicked" />
         </StackPanel>
-        <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
-            <TextBlock x:Name="StatusText" Text="Connect Apple Music in Settings to search." Opacity="0.72" VerticalAlignment="Center" />
-            <ComboBox
-                x:Name="GenreFilterBox"
-                Grid.Column="1"
-                MinWidth="170"
-                PlaceholderText="All genres"
-                ToolTipService.ToolTip="Filter loaded results by genre"
-                AutomationProperties.Name="Filter Apple Music results by genre"
-                SelectionChanged="OnGenreChanged" />
-            <Button x:Name="LoadMoreButton" Grid.Column="2" Content="Load more" Visibility="Collapsed" Click="OnLoadMoreClicked" />
-        </Grid>
+        <TextBlock x:Name="StatusText" Grid.Row="3" Text="Connect Apple Music in Settings to search." Opacity="0.72" VerticalAlignment="Center" />
+        <ScrollViewer
+            Grid.Row="4"
+            HorizontalScrollMode="Auto"
+            HorizontalScrollBarVisibility="Auto"
+            VerticalScrollMode="Disabled"
+            VerticalScrollBarVisibility="Disabled">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <ComboBox
+                    x:Name="GenreFilterBox"
+                    MinWidth="170"
+                    PlaceholderText="All genres"
+                    ToolTipService.ToolTip="Filter loaded results by genre"
+                    AutomationProperties.Name="Filter Apple Music results by genre"
+                    SelectionChanged="OnGenreChanged" />
+                <ComboBox
+                    x:Name="TypeFilterBox"
+                    MinWidth="155"
+                    PlaceholderText="All types"
+                    ToolTipService.ToolTip="Filter loaded results by content type"
+                    AutomationProperties.Name="Filter Apple Music results by content type"
+                    SelectionChanged="OnTypeChanged" />
+                <ComboBox
+                    x:Name="SortBox"
+                    MinWidth="170"
+                    SelectedIndex="0"
+                    ToolTipService.ToolTip="Sort loaded Apple Music results"
+                    AutomationProperties.Name="Sort Apple Music results"
+                    SelectionChanged="OnSortChanged">
+                    <ComboBoxItem Content="Apple order" Tag="apple" />
+                    <ComboBoxItem Content="Title A–Z" Tag="title" />
+                    <ComboBoxItem Content="Artist A–Z" Tag="artist" />
+                    <ComboBoxItem Content="Album A–Z" Tag="album" />
+                    <ComboBoxItem Content="Release date: newest" Tag="release-date-descending" />
+                    <ComboBoxItem Content="Release date: oldest" Tag="release-date-ascending" />
+                    <ComboBoxItem Content="Duration: shortest" Tag="duration-ascending" />
+                    <ComboBoxItem Content="Duration: longest" Tag="duration-descending" />
+                </ComboBox>
+                <Button x:Name="LoadMoreButton" Content="Load more" Visibility="Collapsed" Click="OnLoadMoreClicked" />
+            </StackPanel>
+        </ScrollViewer>
         <ListView
             x:Name="ResultsList"
-            Grid.Row="4"
+            Grid.Row="5"
             SelectionChanged="OnSelectionChanged"
             ItemTemplate="{StaticResource MusicResourceRowTemplate}"
             SelectionMode="Extended" />
-        <StackPanel Grid.Row="5" Spacing="6">
+        <StackPanel Grid.Row="6" Spacing="6">
             <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <Button x:Name="OpenButton" Content="Open details" IsEnabled="False" Click="OnOpenClicked" />
-                    <Button x:Name="PlayButton" Content="Play preview" IsEnabled="False" Click="OnPlayClicked" />
+                    <Button x:Name="OpenAppleMusicButton" Content="Open in Apple Music" IsEnabled="False" Click="OnOpenAppleMusicClicked" />
+                    <Button x:Name="PlayButton" Content="Play" IsEnabled="False" Click="OnPlayClicked" />
                     <Button x:Name="QueueButton" Content="Add to queue" IsEnabled="False" Click="OnQueueClicked" />
                     <Button x:Name="AddButton" Content="Add to library" IsEnabled="False" Click="OnAddClicked" />
                     <Button x:Name="PlaylistButton" Content="Add to playlist" IsEnabled="False" Click="OnAddToPlaylistClicked" />

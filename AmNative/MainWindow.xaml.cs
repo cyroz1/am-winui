@@ -16,6 +16,7 @@ public sealed partial class MainWindow : Window
 {
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _playbackProgressTimer;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _playbackQueueSaveTimer;
+    private WebView2? _musicKitView;
     private bool _isScrubbing;
     private bool _playbackTimerRunning;
     private bool _restoringPlaybackState;
@@ -24,7 +25,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         SystemBackdrop = new MicaBackdrop { Kind = MicaKind.BaseAlt };
-        App.Player.Attach(PlaybackElement);
+        App.Player.Attach(PlaybackElement, CreateMusicKitView, SetMusicKitPresentation);
         App.Player.TrackChanged += OnTrackChanged;
         App.Player.PlaybackFailed += OnPlaybackFailed;
         App.Player.QueueChanged += OnQueueChanged;
@@ -132,7 +133,8 @@ public sealed partial class MainWindow : Window
         NowPlayingTitle.Text = args.Title;
         NowPlayingArtist.Text = args.Artist;
         UpdateAppleMusicLinkAction(args.Resource);
-        PlaybackElement.Visibility = args.Resource?.IsMusicVideo == true
+        PlaybackElement.Visibility = args.Resource is { IsMusicVideo: true, HasPlayablePreview: true } &&
+                                    !App.Player.IsMusicKitActive
             ? Visibility.Visible
             : Visibility.Collapsed;
         var artwork = args.Resource?.ArtworkSource;
@@ -146,8 +148,69 @@ public sealed partial class MainWindow : Window
 
     private void OnPlaybackFailed(object? sender, PlaybackFailedEventArgs args)
     {
-        PlaybackErrorText.Text = $"Preview playback failed: {args.Message}";
+        PlaybackErrorText.Text = $"Apple Music playback failed: {args.Message}";
         PlaybackErrorText.Visibility = Visibility.Visible;
+    }
+
+    private void SetMusicKitPresentation(bool showOverlay, bool showVideo)
+    {
+        var view = _musicKitView;
+        if (view is null)
+        {
+            return;
+        }
+
+        MusicKitLayer.IsHitTestVisible = showOverlay || showVideo;
+        MusicKitWebViewHost.IsHitTestVisible = showOverlay || showVideo;
+        if (showOverlay || showVideo)
+        {
+            MusicKitOverlayBackdrop.Visibility = Visibility.Visible;
+            view.Width = double.NaN;
+            view.Height = showVideo ? 560 : 440;
+            view.MaxWidth = 1000;
+            view.MaxHeight = 680;
+            view.Margin = new Thickness(36);
+            view.HorizontalAlignment = HorizontalAlignment.Stretch;
+            view.VerticalAlignment = VerticalAlignment.Center;
+            view.Opacity = 1;
+            view.IsHitTestVisible = true;
+            return;
+        }
+
+        MusicKitOverlayBackdrop.Visibility = Visibility.Collapsed;
+        view.Width = 1;
+        view.Height = 1;
+        view.MaxWidth = double.PositiveInfinity;
+        view.MaxHeight = double.PositiveInfinity;
+        view.Margin = new Thickness(0);
+        view.HorizontalAlignment = HorizontalAlignment.Left;
+        view.VerticalAlignment = VerticalAlignment.Top;
+        view.Opacity = 0.01;
+        view.IsHitTestVisible = false;
+    }
+
+    private WebView2 CreateMusicKitView()
+    {
+        if (_musicKitView is not null)
+        {
+            return _musicKitView;
+        }
+
+        _musicKitView = new WebView2
+        {
+            Width = 1,
+            Height = 1,
+            Opacity = 0.01,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            IsHitTestVisible = false,
+            IsTabStop = false
+        };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            _musicKitView,
+            "Apple Music playback and sign-in");
+        MusicKitWebViewHost.Content = _musicKitView;
+        return _musicKitView;
     }
 
     private void OnNowPlayingArtworkFailed(object sender, ExceptionRoutedEventArgs args)
@@ -158,14 +221,15 @@ public sealed partial class MainWindow : Window
 
     private async void OnOpenAppleMusicClicked(object sender, RoutedEventArgs args)
     {
-        if (!TryGetAppleMusicShareUri(App.Player.CurrentItem, out var uri))
+        var resource = App.Player.CurrentItem;
+        if (!AppleMusicLink.CanOpen(resource))
         {
             return;
         }
 
         try
         {
-            if (!await Launcher.LaunchUriAsync(uri))
+            if (!await AppleMusicLink.LaunchAsync(resource, App.MusicApi))
             {
                 PlaybackErrorText.Text = "Windows could not open this Apple Music link.";
                 PlaybackErrorText.Visibility = Visibility.Visible;
@@ -180,23 +244,9 @@ public sealed partial class MainWindow : Window
 
     private void UpdateAppleMusicLinkAction(MusicResource? resource)
     {
-        var available = TryGetAppleMusicShareUri(resource, out _);
+        var available = AppleMusicLink.CanOpen(resource);
         OpenAppleMusicButton.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
         OpenAppleMusicButton.IsEnabled = available;
-    }
-
-    private static bool TryGetAppleMusicShareUri(MusicResource? resource, out Uri uri)
-    {
-        if (Uri.TryCreate(resource?.ShareUrl, UriKind.Absolute, out var parsed) &&
-            parsed.Scheme == Uri.UriSchemeHttps &&
-            string.Equals(parsed.Host, "music.apple.com", StringComparison.OrdinalIgnoreCase))
-        {
-            uri = parsed;
-            return true;
-        }
-
-        uri = null!;
-        return false;
     }
 
     private void OnPlayerPlaybackStateChanged(object? sender, EventArgs args)
@@ -399,7 +449,7 @@ public sealed partial class MainWindow : Window
             Content = "Clear queue",
             HorizontalAlignment = HorizontalAlignment.Right
         };
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(clearQueueButton, "Clear playback queue and stop preview playback");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(clearQueueButton, "Clear playback queue and stop playback");
         var queueActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         queueActions.Children.Add(moveUpButton);
         queueActions.Children.Add(moveDownButton);

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using AmNative.Models;
+using AmNative.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -49,7 +50,7 @@ public sealed partial class ReplayPage : Page
 
     private IReadOnlyList<MusicResource> SelectedPlayableItems => ReplayList.SelectedItems
         .OfType<MusicResource>()
-        .Where(static item => item.CanPlayPreview)
+        .Where(static item => item.CanStartPlayback)
         .ToArray();
 
     public ReplayPage()
@@ -189,6 +190,20 @@ public sealed partial class ReplayPage : Page
         }
     }
 
+    private async void OnOpenAppleMusicClicked(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            ActionStatus.Text = await AppleMusicLink.LaunchAsync(_selected, App.MusicApi)
+                ? "Opened the Apple Music link."
+                : "Windows could not open this Apple Music link.";
+        }
+        catch
+        {
+            ActionStatus.Text = "Windows could not open this Apple Music link.";
+        }
+    }
+
     private async void OnPlayClicked(object sender, RoutedEventArgs e)
     {
         var items = SelectedPlayableItems;
@@ -199,12 +214,12 @@ public sealed partial class ReplayPage : Page
 
         _resolvingPlayback = true;
         UpdateActions();
-        ActionStatus.Text = "Resolving preview audio…";
+        ActionStatus.Text = "Preparing Apple Music playback…";
         try
         {
-            var playableItems = await App.MusicApi.ResolvePreviewsForPlaybackAsync(items);
+            var playableItems = await App.ResolvePlaybackItemsAsync(items);
             await App.Player.PlayQueueAsync(playableItems, _selected);
-            ActionStatus.Text = $"Playing {playableItems.Count} available preview{(playableItems.Count == 1 ? "" : "s")}.";
+            ActionStatus.Text = $"Playing {playableItems.Count} Apple Music track{(playableItems.Count == 1 ? "" : "s")}.";
         }
         catch (Exception exception)
         {
@@ -227,11 +242,11 @@ public sealed partial class ReplayPage : Page
 
         _resolvingPlayback = true;
         UpdateActions();
-        ActionStatus.Text = "Resolving previews to add to the queue…";
+        ActionStatus.Text = "Preparing tracks to add to the queue…";
         try
         {
-            var count = await App.EnqueuePreviewsAsync(items);
-            ActionStatus.Text = count == 1 ? "Added one preview to the queue." : $"Added {count} previews to the queue.";
+            var count = await App.EnqueuePlaybackItemsAsync(items);
+            ActionStatus.Text = count == 1 ? "Added one track to the queue." : $"Added {count} tracks to the queue.";
         }
         catch (Exception exception)
         {
@@ -347,8 +362,9 @@ public sealed partial class ReplayPage : Page
     {
         var selected = ReplayList.SelectedItems.OfType<MusicResource>().ToArray();
         OpenButton.IsEnabled = !_loading && selected.Length == 1 && _selected is not null && CanOpen(_selected);
+        OpenAppleMusicButton.IsEnabled = !_loading && selected.Length == 1 && AppleMusicLink.CanOpen(_selected);
         PlayButton.IsEnabled = !_loading && !_resolvingPlayback && SelectedPlayableItems.Count > 0;
-        PlayButton.Content = SelectedPlayableItems.Count > 1 ? "Play previews" : "Play preview";
+        PlayButton.Content = SelectedPlayableItems.Count > 1 ? "Play selection" : "Play";
         QueueButton.IsEnabled = !_loading && !_resolvingPlayback && SelectedPlayableItems.Count > 0;
         QueueButton.Content = SelectedPlayableItems.Count > 1 ? $"Add {SelectedPlayableItems.Count} to queue" : "Add to queue";
         AddButton.IsEnabled = !_loading && !_addingToLibrary && SelectedLibraryItems.Count > 0;

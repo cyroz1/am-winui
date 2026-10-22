@@ -10,7 +10,7 @@
                 <TextBlock x:Name="SubtitleText" Opacity="0.68" />
             </StackPanel>
         </Grid>
-        <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="12">
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="12">
             <TextBlock x:Name="StatusText" Text="Loading Apple Music…" VerticalAlignment="Center" Opacity="0.72" />
             <Button
                 x:Name="LoadMoreButton"
@@ -18,8 +18,9 @@
                 Content="Load more"
                 Visibility="Collapsed"
                 Click="OnLoadMoreClicked" />
-            <Button x:Name="FavoriteParentButton" Grid.Column="2" Content="Add to favorites" Click="OnFavoriteParentClicked" IsEnabled="False" />
-            <Button x:Name="AddParentButton" Grid.Column="3" Content="Add to library" Click="OnAddParentClicked" IsEnabled="False" />
+            <Button x:Name="OpenParentAppleMusicButton" Grid.Column="2" Content="Open in Apple Music" Click="OnOpenParentAppleMusicClicked" IsEnabled="False" />
+            <Button x:Name="FavoriteParentButton" Grid.Column="3" Content="Add to favorites" Click="OnFavoriteParentClicked" IsEnabled="False" />
+            <Button x:Name="AddParentButton" Grid.Column="4" Content="Add to library" Click="OnAddParentClicked" IsEnabled="False" />
         </Grid>
         <StackPanel x:Name="ArtistViewSelector" Grid.Row="2" Orientation="Horizontal" Spacing="10" Visibility="Collapsed">
             <TextBlock Text="Browse" VerticalAlignment="Center" Opacity="0.72" />
@@ -80,6 +81,17 @@
                 <ComboBoxItem x:Name="MusicVideoCatalogItem" Content="Catalog video" Tag="catalog" />
             </ComboBox>
         </StackPanel>
+        <StackPanel x:Name="RecordLabelViewSelector" Grid.Row="2" Orientation="Horizontal" Spacing="10" Visibility="Collapsed">
+            <TextBlock Text="Browse" VerticalAlignment="Center" Opacity="0.72" />
+            <ComboBox
+                x:Name="RecordLabelViewsBox"
+                MinWidth="260"
+                AutomationProperties.Name="Browse record label releases"
+                SelectionChanged="OnRecordLabelViewSelectionChanged">
+                <ComboBoxItem Content="Latest releases" Tag="latest-releases" />
+                <ComboBoxItem Content="Top releases" Tag="top-releases" />
+            </ComboBox>
+        </StackPanel>
         <ListView
             x:Name="RelatedList"
             Grid.Row="3"
@@ -90,8 +102,9 @@
             <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <Button x:Name="OpenButton" Content="Open" IsEnabled="False" Click="OnOpenClicked" />
-                    <Button x:Name="PlayParentButton" Content="Play song preview" Visibility="Collapsed" IsEnabled="False" Click="OnPlayParentClicked" />
-                    <Button x:Name="PlayAllButton" Content="Play all previews" IsEnabled="False" Click="OnPlayAllClicked" />
+                    <Button x:Name="OpenAppleMusicButton" Content="Open in Apple Music" IsEnabled="False" Click="OnOpenAppleMusicClicked" />
+                    <Button x:Name="PlayParentButton" Content="Play song" Visibility="Collapsed" IsEnabled="False" Click="OnPlayParentClicked" />
+                    <Button x:Name="PlayAllButton" Content="Play all" IsEnabled="False" Click="OnPlayAllClicked" />
                     <Button x:Name="PlayButton" Content="Play from here" IsEnabled="False" Click="OnPlayClicked" />
                     <Button x:Name="QueueButton" Content="Add to queue" IsEnabled="False" Click="OnQueueClicked" />
                     <Button x:Name="AddButton" Content="Add to library" IsEnabled="False" Click="OnAddClicked" />

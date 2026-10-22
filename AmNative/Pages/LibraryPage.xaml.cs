@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using AmNative.Models;
+using AmNative.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -300,6 +301,22 @@ public sealed partial class LibraryPage : Page
             "album" => visibleItems
                 .OrderBy(static item => string.IsNullOrWhiteSpace(item.AlbumName))
                 .ThenBy(static item => item.AlbumName, StringComparer.CurrentCultureIgnoreCase),
+            "date-added-ascending" => visibleItems
+                .OrderBy(static item => item.DateAdded is null)
+                .ThenBy(static item => item.DateAdded)
+                .ThenBy(static item => item.Name, StringComparer.CurrentCultureIgnoreCase),
+            "date-added-descending" => visibleItems
+                .OrderBy(static item => item.DateAdded is null)
+                .ThenByDescending(static item => item.DateAdded)
+                .ThenBy(static item => item.Name, StringComparer.CurrentCultureIgnoreCase),
+            "release-date-ascending" => visibleItems
+                .OrderBy(static item => string.IsNullOrWhiteSpace(item.ReleaseDate))
+                .ThenBy(static item => item.ReleaseDate, StringComparer.Ordinal)
+                .ThenBy(static item => item.Name, StringComparer.CurrentCultureIgnoreCase),
+            "release-date-descending" => visibleItems
+                .OrderBy(static item => string.IsNullOrWhiteSpace(item.ReleaseDate))
+                .ThenByDescending(static item => item.ReleaseDate, StringComparer.Ordinal)
+                .ThenBy(static item => item.Name, StringComparer.CurrentCultureIgnoreCase),
             "duration-ascending" => visibleItems
                 .OrderBy(static item => item.DurationInMillis is null)
                 .ThenBy(static item => item.DurationInMillis ?? int.MaxValue),
@@ -320,6 +337,20 @@ public sealed partial class LibraryPage : Page
         var sortSuffix = _sortMode == "apple"
             ? ""
             : $" · Sorted by {(SortBox.SelectedItem as ComboBoxItem)?.Content}";
+        if (_sortMode is "date-added-ascending" or "date-added-descending" or
+            "release-date-ascending" or "release-date-descending")
+        {
+            var sortingByAddedDate = _sortMode.StartsWith("date-added", StringComparison.Ordinal);
+            var missingDateCount = sortingByAddedDate
+                ? _loadedItems.Count(static item => item.DateAdded is null)
+                : _loadedItems.Count(static item => string.IsNullOrWhiteSpace(item.ReleaseDate));
+            if (missingDateCount > 0)
+            {
+                var dateLabel = sortingByAddedDate ? "added date" : "release date";
+                sortSuffix += $" · Apple did not report a {dateLabel} for {missingDateCount} loaded items";
+            }
+        }
+
         if (!_showFavoritesOnly)
         {
             var genreSuffix = (_selectedGenre is null ? "" : $" · {_selectedGenre}") + sortSuffix;
@@ -437,9 +468,23 @@ public sealed partial class LibraryPage : Page
         }
     }
 
+    private async void OnOpenAppleMusicClicked(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            ActionStatus.Text = await AppleMusicLink.LaunchAsync(_selected, App.MusicApi)
+                ? "Opened the Apple Music link."
+                : "Windows could not open this Apple Music link.";
+        }
+        catch
+        {
+            ActionStatus.Text = "Windows could not open this Apple Music link.";
+        }
+    }
+
     private async void OnPlayClicked(object sender, RoutedEventArgs e)
     {
-        var items = SelectedPlaylistItems.Where(static item => item.CanPlayPreview).ToArray();
+        var items = SelectedPlaylistItems.Where(static item => item.CanStartPlayback).ToArray();
         if (items.Length == 0 || _resolvingPlayback)
         {
             return;
@@ -448,14 +493,14 @@ public sealed partial class LibraryPage : Page
         var startAt = _selected;
         _resolvingPlayback = true;
         UpdateActions();
-        ActionStatus.Text = "Resolving preview audio…";
+        ActionStatus.Text = "Preparing Apple Music playback…";
         try
         {
-            var playableItems = await App.MusicApi.ResolvePreviewsForPlaybackAsync(items);
+            var playableItems = await App.ResolvePlaybackItemsAsync(items);
             await App.Player.PlayQueueAsync(playableItems, startAt);
             ActionStatus.Text = playableItems.Count > 1
-                ? "Playing available previews from the selection."
-                : "Playing the available preview.";
+                ? "Playing the selected Apple Music tracks."
+                : "Playing the selected Apple Music track.";
         }
         catch (Exception exception)
         {
@@ -470,7 +515,7 @@ public sealed partial class LibraryPage : Page
 
     private async void OnQueueClicked(object sender, RoutedEventArgs e)
     {
-        var items = SelectedPlaylistItems.Where(static item => item.CanPlayPreview).ToArray();
+        var items = SelectedPlaylistItems.Where(static item => item.CanStartPlayback).ToArray();
         if (items.Length == 0 || _resolvingPlayback)
         {
             return;
@@ -478,11 +523,11 @@ public sealed partial class LibraryPage : Page
 
         _resolvingPlayback = true;
         UpdateActions();
-        ActionStatus.Text = "Resolving previews to add to the queue…";
+        ActionStatus.Text = "Preparing tracks to add to the queue…";
         try
         {
-            var count = await App.EnqueuePreviewsAsync(items);
-            ActionStatus.Text = count == 1 ? "Added one preview to the queue." : $"Added {count} previews to the queue.";
+            var count = await App.EnqueuePlaybackItemsAsync(items);
+            ActionStatus.Text = count == 1 ? "Added one track to the queue." : $"Added {count} tracks to the queue.";
         }
         catch (Exception exception)
         {
@@ -580,8 +625,9 @@ public sealed partial class LibraryPage : Page
     {
         var selected = _selected;
         OpenButton.IsEnabled = _selected is not null && HasRelatedItems(_selected);
-        var playableCount = SelectedPlaylistItems.Count(static item => item.CanPlayPreview);
-        PlayButton.Content = playableCount > 1 ? $"Play {playableCount} previews" : "Play preview";
+        OpenAppleMusicButton.IsEnabled = !_loading && AppleMusicLink.CanOpen(_selected);
+        var playableCount = SelectedPlaylistItems.Count(static item => item.CanStartPlayback);
+        PlayButton.Content = playableCount > 1 ? $"Play {playableCount} tracks" : "Play";
         PlayButton.IsEnabled = !_loading && !_resolvingPlayback && playableCount > 0;
         QueueButton.Content = playableCount > 1 ? $"Add {playableCount} to queue" : "Add to queue";
         QueueButton.IsEnabled = !_loading && !_resolvingPlayback && playableCount > 0;

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using AmNative.Models;
+using AmNative.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -14,7 +15,10 @@ public sealed partial class SearchPage : Page
     private bool _loading;
     private bool _showingChart;
     private bool _updatingGenreOptions;
+    private bool _updatingTypeOptions;
     private string? _selectedGenre;
+    private string? _selectedResourceType;
+    private string _sortMode = "apple";
     private bool _resolvingPlayback;
     private bool _addingToLibrary;
     private bool _addingToFavorites;
@@ -50,6 +54,27 @@ public sealed partial class SearchPage : Page
 
     private async void OnLoadMoreClicked(object sender, RoutedEventArgs e) => await LoadMoreAsync();
 
+    private void OnSortChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (SortBox.SelectedItem is not ComboBoxItem { Tag: string sortMode })
+        {
+            return;
+        }
+
+        _sortMode = sortMode;
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        ResultsList.SelectedItems.Clear();
+        _selected = null;
+        ActionStatus.Text = "";
+        RefreshVisibleItems();
+        UpdateResultStatus();
+        UpdateActions();
+    }
+
     private void OnGenreChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_updatingGenreOptions)
@@ -59,6 +84,23 @@ public sealed partial class SearchPage : Page
 
         var selectedGenre = (GenreFilterBox.SelectedItem as ComboBoxItem)?.Tag as string;
         _selectedGenre = string.IsNullOrWhiteSpace(selectedGenre) ? null : selectedGenre;
+        ResultsList.SelectedItems.Clear();
+        _selected = null;
+        ActionStatus.Text = "";
+        RefreshVisibleItems();
+        UpdateResultStatus();
+        UpdateActions();
+    }
+
+    private void OnTypeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingTypeOptions)
+        {
+            return;
+        }
+
+        var selectedType = (TypeFilterBox.SelectedItem as ComboBoxItem)?.Tag as string;
+        _selectedResourceType = string.IsNullOrWhiteSpace(selectedType) ? null : selectedType;
         ResultsList.SelectedItems.Clear();
         _selected = null;
         ActionStatus.Text = "";
@@ -162,6 +204,7 @@ public sealed partial class SearchPage : Page
         _nextPages.Clear();
         _loadedItems.Clear();
         UpdateGenreFilterOptions();
+        UpdateResourceTypeOptions();
         SetBusy(true);
         _items.Clear();
         _selected = null;
@@ -172,6 +215,7 @@ public sealed partial class SearchPage : Page
             var page = await App.MusicApi.SearchCatalogPageAsync(term);
             _loadedItems.AddRange(page.Items);
             UpdateGenreFilterOptions();
+            UpdateResourceTypeOptions();
             RefreshVisibleItems();
             _nextPages.AddRange(page.NextPages);
             UpdateResultStatus();
@@ -202,6 +246,7 @@ public sealed partial class SearchPage : Page
         _nextPages.Clear();
         _loadedItems.Clear();
         UpdateGenreFilterOptions();
+        UpdateResourceTypeOptions();
         SetBusy(true);
         _items.Clear();
         _selected = null;
@@ -213,6 +258,7 @@ public sealed partial class SearchPage : Page
             var page = await App.MusicApi.GetCatalogChartsPageAsync(chartType);
             _loadedItems.AddRange(page.Items);
             UpdateGenreFilterOptions();
+            UpdateResourceTypeOptions();
             RefreshVisibleItems();
             _nextPages.AddRange(page.NextPages);
             UpdateResultStatus();
@@ -256,7 +302,8 @@ public sealed partial class SearchPage : Page
 
             _loadedItems.AddRange(addedItems);
             UpdateGenreFilterOptions();
-            AddVisibleItems(addedItems);
+            UpdateResourceTypeOptions();
+            RefreshVisibleItems();
             UpdateResultStatus();
         }
         catch (Exception exception)
@@ -277,6 +324,8 @@ public sealed partial class SearchPage : Page
         ChartTypeBox.IsEnabled = !busy;
         BrowseChartButton.IsEnabled = !busy;
         GenreFilterBox.IsEnabled = !busy && GenreFilterBox.Items.Count > 1;
+        TypeFilterBox.IsEnabled = !busy && TypeFilterBox.Items.Count > 1;
+        SortBox.IsEnabled = !busy;
         LoadMoreButton.IsEnabled = !busy && _nextPages.Count > 0;
         LoadMoreButton.Visibility = _nextPages.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         StatusText.Text = busy ? "Searching…" : StatusText.Text;
@@ -314,6 +363,47 @@ public sealed partial class SearchPage : Page
         _updatingGenreOptions = false;
     }
 
+    private void UpdateResourceTypeOptions()
+    {
+        var previousType = _selectedResourceType;
+        var types = _loadedItems
+            .Select(static item => item.Type)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(GetResourceTypeLabel, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+
+        _updatingTypeOptions = true;
+        TypeFilterBox.Items.Clear();
+        TypeFilterBox.Items.Add(new ComboBoxItem { Content = "All types", Tag = "" });
+        foreach (var type in types)
+        {
+            TypeFilterBox.Items.Add(new ComboBoxItem { Content = GetResourceTypeLabel(type), Tag = type });
+        }
+
+        var previousTypeIndex = previousType is null
+            ? -1
+            : Array.FindIndex(types, type => string.Equals(type, previousType, StringComparison.Ordinal));
+        TypeFilterBox.SelectedIndex = previousTypeIndex + 1;
+        var selectedType = (TypeFilterBox.SelectedItem as ComboBoxItem)?.Tag as string;
+        _selectedResourceType = string.IsNullOrWhiteSpace(selectedType) ? null : selectedType;
+        _updatingTypeOptions = false;
+    }
+
+    private static string GetResourceTypeLabel(string type) => type switch
+    {
+        "songs" => "Songs",
+        "albums" => "Albums",
+        "artists" => "Artists",
+        "playlists" => "Playlists",
+        "music-videos" => "Music videos",
+        "stations" => "Radio stations",
+        "activities" => "Activities",
+        "apple-curators" => "Apple curators",
+        "curators" => "Curators",
+        "record-labels" => "Record labels",
+        _ => type
+    };
+
     private void RefreshVisibleItems()
     {
         _items.Clear();
@@ -322,30 +412,70 @@ public sealed partial class SearchPage : Page
 
     private void AddVisibleItems(IEnumerable<MusicResource> items)
     {
-        foreach (var item in items)
+        var visibleItems = items.Where(item =>
+            (_selectedResourceType is null || string.Equals(item.Type, _selectedResourceType, StringComparison.Ordinal)) &&
+            (_selectedGenre is null || item.GenreNames.Contains(_selectedGenre, StringComparer.OrdinalIgnoreCase)));
+        visibleItems = _sortMode switch
         {
-            if (_selectedGenre is null ||
-                item.GenreNames.Contains(_selectedGenre, StringComparer.OrdinalIgnoreCase))
-            {
-                _items.Add(item);
-            }
+            "title" => visibleItems.OrderBy(static item => item.Name, StringComparer.CurrentCultureIgnoreCase),
+            "artist" => visibleItems
+                .OrderBy(static item => string.IsNullOrWhiteSpace(item.ArtistName))
+                .ThenBy(static item => item.ArtistName, StringComparer.CurrentCultureIgnoreCase),
+            "album" => visibleItems
+                .OrderBy(static item => string.IsNullOrWhiteSpace(item.AlbumName))
+                .ThenBy(static item => item.AlbumName, StringComparer.CurrentCultureIgnoreCase),
+            "release-date-ascending" => visibleItems
+                .OrderBy(static item => string.IsNullOrWhiteSpace(item.ReleaseDate))
+                .ThenBy(static item => item.ReleaseDate, StringComparer.Ordinal)
+                .ThenBy(static item => item.Name, StringComparer.CurrentCultureIgnoreCase),
+            "release-date-descending" => visibleItems
+                .OrderBy(static item => string.IsNullOrWhiteSpace(item.ReleaseDate))
+                .ThenByDescending(static item => item.ReleaseDate, StringComparer.Ordinal)
+                .ThenBy(static item => item.Name, StringComparer.CurrentCultureIgnoreCase),
+            "duration-ascending" => visibleItems
+                .OrderBy(static item => item.DurationInMillis is null)
+                .ThenBy(static item => item.DurationInMillis ?? int.MaxValue),
+            "duration-descending" => visibleItems
+                .OrderBy(static item => item.DurationInMillis is null)
+                .ThenByDescending(static item => item.DurationInMillis ?? int.MinValue),
+            _ => visibleItems
+        };
+
+        foreach (var item in visibleItems)
+        {
+            _items.Add(item);
         }
     }
 
     private void UpdateResultStatus()
     {
         var genreSuffix = _selectedGenre is null ? "" : $" · {_selectedGenre}";
+        var typeSuffix = _selectedResourceType is null
+            ? ""
+            : $" · {(TypeFilterBox.SelectedItem as ComboBoxItem)?.Content}";
+        var sortSuffix = _sortMode == "apple"
+            ? ""
+            : $" · Sorted by {(SortBox.SelectedItem as ComboBoxItem)?.Content}";
+        if (_sortMode is "release-date-ascending" or "release-date-descending")
+        {
+            var missingReleaseDateCount = _loadedItems.Count(static item => string.IsNullOrWhiteSpace(item.ReleaseDate));
+            if (missingReleaseDateCount > 0)
+            {
+                sortSuffix += $" · Apple did not report a release date for {missingReleaseDateCount} loaded items";
+            }
+        }
+
         if (_showingChart)
         {
             StatusText.Text = _loadedItems.Count == 0
                 ? $"No {_chartLabel.ToLowerInvariant()} were returned."
-                : $"{_items.Count} {_chartLabel.ToLowerInvariant()}{genreSuffix}";
+                : $"{_items.Count} {_chartLabel.ToLowerInvariant()}{genreSuffix}{typeSuffix}{sortSuffix}";
         }
         else
         {
             StatusText.Text = _loadedItems.Count == 0
                 ? "No results found."
-                : $"{_items.Count} results{genreSuffix}";
+                : $"{_items.Count} results{genreSuffix}{typeSuffix}{sortSuffix}";
         }
     }
 
@@ -365,9 +495,23 @@ public sealed partial class SearchPage : Page
         }
     }
 
+    private async void OnOpenAppleMusicClicked(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            ActionStatus.Text = await AppleMusicLink.LaunchAsync(_selected, App.MusicApi)
+                ? "Opened the Apple Music link."
+                : "Windows could not open this Apple Music link.";
+        }
+        catch
+        {
+            ActionStatus.Text = "Windows could not open this Apple Music link.";
+        }
+    }
+
     private async void OnPlayClicked(object sender, RoutedEventArgs e)
     {
-        var items = SelectedPlaylistItems.Where(static item => item.CanPlayPreview).ToArray();
+        var items = SelectedPlaylistItems.Where(static item => item.CanStartPlayback).ToArray();
         if (items.Length == 0 || _resolvingPlayback)
         {
             return;
@@ -376,14 +520,14 @@ public sealed partial class SearchPage : Page
         var startAt = _selected;
         _resolvingPlayback = true;
         UpdateActions();
-        ActionStatus.Text = "Resolving preview audio…";
+        ActionStatus.Text = "Preparing Apple Music playback…";
         try
         {
-            var playableItems = await App.MusicApi.ResolvePreviewsForPlaybackAsync(items);
+            var playableItems = await App.ResolvePlaybackItemsAsync(items);
             await App.Player.PlayQueueAsync(playableItems, startAt);
             ActionStatus.Text = playableItems.Count > 1
-                ? "Playing available previews from the selection."
-                : "Playing the available preview.";
+                ? "Playing the selected Apple Music tracks."
+                : "Playing the selected Apple Music track.";
         }
         catch (Exception exception)
         {
@@ -398,7 +542,7 @@ public sealed partial class SearchPage : Page
 
     private async void OnQueueClicked(object sender, RoutedEventArgs e)
     {
-        var items = SelectedPlaylistItems.Where(static item => item.CanPlayPreview).ToArray();
+        var items = SelectedPlaylistItems.Where(static item => item.CanStartPlayback).ToArray();
         if (items.Length == 0 || _resolvingPlayback)
         {
             return;
@@ -406,11 +550,11 @@ public sealed partial class SearchPage : Page
 
         _resolvingPlayback = true;
         UpdateActions();
-        ActionStatus.Text = "Resolving previews to add to the queue…";
+        ActionStatus.Text = "Preparing tracks to add to the queue…";
         try
         {
-            var count = await App.EnqueuePreviewsAsync(items);
-            ActionStatus.Text = count == 1 ? "Added one preview to the queue." : $"Added {count} previews to the queue.";
+            var count = await App.EnqueuePlaybackItemsAsync(items);
+            ActionStatus.Text = count == 1 ? "Added one track to the queue." : $"Added {count} tracks to the queue.";
         }
         catch (Exception exception)
         {
@@ -530,8 +674,9 @@ public sealed partial class SearchPage : Page
     private void UpdateActions()
     {
         OpenButton.IsEnabled = _selected is not null && HasRelatedItems(_selected);
-        var playableCount = SelectedPlaylistItems.Count(static item => item.CanPlayPreview);
-        PlayButton.Content = playableCount > 1 ? $"Play {playableCount} previews" : "Play preview";
+        OpenAppleMusicButton.IsEnabled = !_loading && AppleMusicLink.CanOpen(_selected);
+        var playableCount = SelectedPlaylistItems.Count(static item => item.CanStartPlayback);
+        PlayButton.Content = playableCount > 1 ? $"Play {playableCount} tracks" : "Play";
         PlayButton.IsEnabled = !_loading && !_resolvingPlayback && playableCount > 0;
         QueueButton.Content = playableCount > 1 ? $"Add {playableCount} to queue" : "Add to queue";
         QueueButton.IsEnabled = !_loading && !_resolvingPlayback && playableCount > 0;
@@ -560,5 +705,5 @@ public sealed partial class SearchPage : Page
 
     private static bool HasRelatedItems(MusicResource item) => item.Type is
         "albums" or "album" or "artists" or "artist" or "playlists" or "playlist" or "songs" or "song" or
-        "music-videos" or "music-video";
+        "music-videos" or "music-video" or "activities" or "apple-curators" or "curators" or "record-labels";
 }

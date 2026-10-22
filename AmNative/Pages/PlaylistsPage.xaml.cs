@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using AmNative.Models;
+using AmNative.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
@@ -19,10 +20,9 @@ public sealed partial class PlaylistsPage : Page
     private IReadOnlyList<MusicResource> SelectedPlaylistItems => TracksList.SelectedItems
         .OfType<MusicResource>()
         .Where(static item => item.CanBeAddedToPlaylist)
-        .DistinctBy(static item => (item.Type, item.Id))
         .ToArray();
     private IReadOnlyList<MusicResource> SelectedPlayableItems => SelectedPlaylistItems
-        .Where(static item => item.CanPlayPreview)
+        .Where(static item => item.CanStartPlayback)
         .ToArray();
     private Uri? _nextFolderPage;
     private Uri? _nextTrackPage;
@@ -266,6 +266,26 @@ public sealed partial class PlaylistsPage : Page
         UpdateSelection();
     }
 
+    private async void OnOpenAppleMusicClicked(object sender, RoutedEventArgs e)
+    {
+        var item = _selectedTrack ?? _selectedPlaylist;
+        if (!AppleMusicLink.CanOpen(item))
+        {
+            return;
+        }
+
+        try
+        {
+            StatusText.Text = await AppleMusicLink.LaunchAsync(item, App.MusicApi)
+                ? "Opened the selected Apple Music link."
+                : "Windows could not open this Apple Music link.";
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = exception.Message;
+        }
+    }
+
     private void OnTrackFilterChanged(object sender, TextChangedEventArgs e)
     {
         if (!IsLoaded)
@@ -334,10 +354,7 @@ public sealed partial class PlaylistsPage : Page
 
             foreach (var track in page.Items)
             {
-                if (!_loadedTracks.Any(existing => existing.Id == track.Id && existing.Type == track.Type))
-                {
-                    _loadedTracks.Add(track);
-                }
+                _loadedTracks.Add(track);
             }
 
             _nextTrackPage = page.NextPages.FirstOrDefault();
@@ -430,19 +447,19 @@ public sealed partial class PlaylistsPage : Page
         {
             if (selectedItems.Count > 1)
             {
-                StatusText.Text = "Resolving selected previews…";
-                var playableItems = await App.MusicApi.ResolvePreviewsForPlaybackAsync(
-                    selectedItems.Where(static item => item.CanPlayPreview));
+                StatusText.Text = "Preparing selected tracks…";
+                var playableItems = await App.ResolvePlaybackItemsAsync(
+                    selectedItems.Where(static item => item.CanStartPlayback));
                 if (playableItems.Count == 0)
                 {
-                    StatusText.Text = "The selected tracks have no playable previews.";
+                    StatusText.Text = "No selected tracks are available for playback.";
                     return;
                 }
 
                 await App.Player.PlayQueueAsync(playableItems, selectedTrack);
                 StatusText.Text = playableItems.Count == 1
-                    ? "Playing the selected preview."
-                    : $"Playing {playableItems.Count} selected previews.";
+                    ? "Playing the selected Apple Music track."
+                    : $"Playing {playableItems.Count} selected Apple Music tracks.";
             }
             else
             {
@@ -454,8 +471,15 @@ public sealed partial class PlaylistsPage : Page
                     return;
                 }
 
-                await App.Player.PlayQueueAsync(tracks, selectedTrack);
-                StatusText.Text = "Playing available previews from the selected track.";
+                var playableTracks = await App.ResolvePlaybackItemsAsync(tracks);
+                if (playableTracks.Count == 0)
+                {
+                    StatusText.Text = "This playlist has no tracks available for playback.";
+                    return;
+                }
+
+                await App.Player.PlayQueueAsync(playableTracks, selectedTrack);
+                StatusText.Text = "Playing tracks from the selected item.";
             }
         }
         catch (Exception exception)
@@ -482,12 +506,12 @@ public sealed partial class PlaylistsPage : Page
         UpdateCommandState();
         try
         {
-            var count = await App.EnqueuePreviewsAsync(items);
+            var count = await App.EnqueuePlaybackItemsAsync(items);
             StatusText.Text = count == 1
                 ? items.Count == 1
                     ? $"Added “{items[0].Name}” to the queue."
-                    : "Added one preview to the queue."
-                : $"Added {count} previews to the queue.";
+                    : "Added one track to the queue."
+                : $"Added {count} tracks to the queue.";
         }
         catch (Exception exception)
         {
@@ -534,6 +558,7 @@ public sealed partial class PlaylistsPage : Page
         LoadMoreTracksButton.IsEnabled = enabled && _nextTrackPage is not null;
         TrackFilterBox.IsEnabled = _selectedPlaylist is not null && !_loading && !_loadingTracks && !_mutating;
         TrackSortBox.IsEnabled = _selectedPlaylist is not null && !_loading && !_loadingTracks && !_mutating;
+        OpenAppleMusicButton.IsEnabled = enabled && AppleMusicLink.CanOpen(_selectedTrack ?? _selectedPlaylist);
         AddSongButton.Content = _pendingItems.Count switch
         {
             1 => "Add selected item",
@@ -543,7 +568,7 @@ public sealed partial class PlaylistsPage : Page
         AddSongButton.IsEnabled = enabled && (_pendingItems.Count > 0
             ? _selectedPlaylist is not null && _selectedPlaylist.CanEdit && _pendingItems.All(static item => item.CanBeAddedToPlaylist)
             : SelectedPlaylistItems.Count > 0);
-        PlayTrackButton.Content = SelectedPlaylistItems.Count > 1 ? "Play selected previews" : "Play playlist from here";
+        PlayTrackButton.Content = SelectedPlaylistItems.Count > 1 ? "Play selected tracks" : "Play playlist from here";
         PlayTrackButton.IsEnabled = enabled && SelectedPlaylistItems.Count > 0 && SelectedPlayableItems.Count > 0;
         QueueTrackButton.Content = SelectedPlayableItems.Count > 1
             ? $"Add {SelectedPlayableItems.Count} to queue"

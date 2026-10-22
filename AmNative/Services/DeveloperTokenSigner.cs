@@ -13,22 +13,43 @@ internal static class DeveloperTokenSigner
         using var key = ImportPrivateKey(privateKeyPem);
     }
 
-    public static string CreateToken(string teamId, string keyId, string privateKeyPem, DateTimeOffset now)
+    public static string CreateToken(
+        string teamId,
+        string keyId,
+        string privateKeyPem,
+        DateTimeOffset now,
+        string? origin = null,
+        TimeSpan? lifetime = null)
     {
         using var key = ImportPrivateKey(privateKeyPem);
         var issuedAt = now.ToUnixTimeSeconds();
+        var tokenLifetime = lifetime ?? TimeSpan.FromHours(1);
+        if (tokenLifetime <= TimeSpan.Zero || tokenLifetime > TimeSpan.FromSeconds(15_777_000))
+        {
+            throw new ArgumentOutOfRangeException(nameof(lifetime), "Apple Music developer tokens can be valid for at most six months.");
+        }
+
+        var expiresAt = now.Add(tokenLifetime).ToUnixTimeSeconds();
         var header = JsonSerializer.SerializeToUtf8Bytes(new
         {
             alg = "ES256",
             kid = keyId,
             typ = "JWT"
         });
-        var payload = JsonSerializer.SerializeToUtf8Bytes(new
-        {
-            iss = teamId,
-            iat = issuedAt,
-            exp = issuedAt + 3600
-        });
+        var payload = string.IsNullOrWhiteSpace(origin)
+            ? JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                iss = teamId,
+                iat = issuedAt,
+                exp = expiresAt
+            })
+            : JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                iss = teamId,
+                iat = issuedAt,
+                exp = expiresAt,
+                origin = new[] { origin }
+            });
         var unsignedToken = $"{Base64UrlEncode(header)}.{Base64UrlEncode(payload)}";
         var signature = key.SignData(
             Encoding.ASCII.GetBytes(unsignedToken),

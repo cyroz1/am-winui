@@ -68,7 +68,7 @@
                     </Border>
                     <StackPanel Spacing="2" VerticalAlignment="Center">
                         <TextBlock x:Name="NowPlayingTitle" Text="Nothing playing" FontWeight="SemiBold" />
-                        <TextBlock x:Name="NowPlayingArtist" Text="Apple Music preview player" Opacity="0.68" FontSize="12" />
+                        <TextBlock x:Name="NowPlayingArtist" Text="Apple Music playback" Opacity="0.68" FontSize="12" />
                         <Button
                             x:Name="OpenAppleMusicButton"
                             Content="Open in Apple Music"
@@ -81,7 +81,7 @@
                             ToolTipService.ToolTip="Open this Apple Music link in the default browser for full playback." />
                         <TextBlock
                             x:Name="PlaybackRestoreText"
-                            Text="Previous preview queue restored. Press Play to resume."
+                            Text="Previous queue restored. Press Play to resume."
                             FontSize="11"
                             Opacity="0.72"
                             TextTrimming="CharacterEllipsis"
@@ -106,7 +106,7 @@
                     Stretch="Uniform"
                     IsHitTestVisible="False"
                     IsTabStop="False"
-                    AutomationProperties.Name="Music video preview" />
+                    AutomationProperties.Name="Music video playback" />
                 <Button
                     x:Name="PlayPauseButton"
                     Grid.Row="0"
@@ -114,7 +114,7 @@
                     Content="Play"
                     IsEnabled="False"
                     Click="OnPlayPauseClicked"
-                    AutomationProperties.Name="Play or pause preview playback" />
+                    AutomationProperties.Name="Play or pause playback" />
                 <Button x:Name="NextTrackButton" Grid.Row="0" Grid.Column="4" Content="Next" IsEnabled="False" Click="OnNextTrackClicked" />
                 <ToggleButton x:Name="ShuffleButton" Grid.Row="0" Grid.Column="5" Content="Shuffle" IsEnabled="False" Click="OnShuffleClicked" />
                 <ToggleButton x:Name="RepeatButton" Grid.Row="0" Grid.Column="6" Content="Repeat" IsEnabled="False" Click="OnRepeatClicked" />
@@ -155,5 +155,21 @@
                 </Grid>
             </Grid>
         </Border>
+
+        <Grid
+            x:Name="MusicKitLayer"
+            Grid.Row="0"
+            Grid.RowSpan="2"
+            IsHitTestVisible="False">
+            <Border
+                x:Name="MusicKitOverlayBackdrop"
+                Background="#B3000000"
+                Visibility="Collapsed" />
+            <ContentControl
+                x:Name="MusicKitWebViewHost"
+                HorizontalContentAlignment="Stretch"
+                VerticalContentAlignment="Stretch"
+                IsHitTestVisible="False" />
+        </Grid>
     </Grid>
 </Window>

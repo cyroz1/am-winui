@@ -7,6 +7,7 @@ namespace AmNative.Services;
 
 public sealed class CredentialStore
 {
+    public const string MusicKitWebOrigin = "https://appassets.amnative";
     private const string Resource = "AMNative.AppleMusic";
     private const string DeveloperTokenName = "developer-token";
     private const string DeveloperTeamIdName = "developer-team-id";
@@ -17,6 +18,8 @@ public sealed class CredentialStore
     private readonly object _developerTokenSync = new();
     private string? _cachedDeveloperToken;
     private DateTimeOffset _cachedDeveloperTokenExpiry;
+    private string? _cachedMusicKitDeveloperToken;
+    private DateTimeOffset _cachedMusicKitDeveloperTokenExpiry;
 
     public string? DeveloperToken
     {
@@ -24,8 +27,49 @@ public sealed class CredentialStore
         {
             lock (_developerTokenSync)
             {
-                var savedToken = Read(DeveloperTokenName);
+                var savedToken = NormalizeDeveloperToken(Read(DeveloperTokenName));
                 return !string.IsNullOrWhiteSpace(savedToken) ? savedToken : GetGeneratedDeveloperToken();
+            }
+        }
+    }
+    public string? MusicKitDeveloperToken
+    {
+        get
+        {
+            lock (_developerTokenSync)
+            {
+                var savedToken = NormalizeDeveloperToken(Read(DeveloperTokenName));
+                if (!string.IsNullOrWhiteSpace(savedToken))
+                {
+                    return savedToken;
+                }
+
+                var teamId = DeveloperTeamId;
+                var keyId = DeveloperKeyId;
+                var privateKey = Read(DeveloperPrivateKeyName);
+                if (string.IsNullOrWhiteSpace(teamId) ||
+                    string.IsNullOrWhiteSpace(keyId) ||
+                    string.IsNullOrWhiteSpace(privateKey))
+                {
+                    return null;
+                }
+
+                var now = DateTimeOffset.UtcNow;
+                if (!string.IsNullOrWhiteSpace(_cachedMusicKitDeveloperToken) &&
+                    _cachedMusicKitDeveloperTokenExpiry > now.AddMinutes(5))
+                {
+                    return _cachedMusicKitDeveloperToken;
+                }
+
+                _cachedMusicKitDeveloperToken = DeveloperTokenSigner.CreateToken(
+                    teamId,
+                    keyId,
+                    privateKey,
+                    now,
+                    MusicKitWebOrigin,
+                    TimeSpan.FromDays(180));
+                _cachedMusicKitDeveloperTokenExpiry = now.AddDays(180);
+                return _cachedMusicKitDeveloperToken;
             }
         }
     }
@@ -34,7 +78,7 @@ public sealed class CredentialStore
     public bool HasSavedDeveloperPrivateKey => !string.IsNullOrWhiteSpace(Read(DeveloperPrivateKeyName));
     public string? AppleMusicWebCookie => ReadWebCookie();
     public string? MusicUserToken => NormalizeUserToken(Read(UserTokenName)) ?? ExtractUserToken(AppleMusicWebCookie);
-    public bool HasDeveloperToken => !string.IsNullOrWhiteSpace(Read(DeveloperTokenName)) ||
+    public bool HasDeveloperToken => !string.IsNullOrWhiteSpace(NormalizeDeveloperToken(Read(DeveloperTokenName))) ||
                                     (!string.IsNullOrWhiteSpace(DeveloperTeamId) &&
                                      !string.IsNullOrWhiteSpace(DeveloperKeyId) &&
                                      HasSavedDeveloperPrivateKey);
@@ -58,7 +102,14 @@ public sealed class CredentialStore
             throw new ArgumentException("The developer token is too long or contains invalid line breaks.", nameof(developerToken));
         }
 
+        var normalizedDeveloperToken = NormalizeDeveloperToken(developerToken);
+
         var manualDeveloperTokenSupplied = !string.IsNullOrWhiteSpace(developerToken);
+        if (manualDeveloperTokenSupplied && string.IsNullOrWhiteSpace(normalizedDeveloperToken))
+        {
+            throw new ArgumentException("Enter a valid Apple Music developer token.", nameof(developerToken));
+        }
+
         var signingInputSupplied = !string.IsNullOrWhiteSpace(developerTeamId) ||
                                    !string.IsNullOrWhiteSpace(developerKeyId) ||
                                    !string.IsNullOrWhiteSpace(developerPrivateKeyPem);
@@ -142,7 +193,7 @@ public sealed class CredentialStore
         {
             if (manualDeveloperTokenSupplied)
             {
-                Write(DeveloperTokenName, developerToken);
+                Write(DeveloperTokenName, normalizedDeveloperToken);
                 Write(DeveloperTeamIdName, null);
                 Write(DeveloperKeyIdName, null);
                 Write(DeveloperPrivateKeyName, null);
@@ -157,6 +208,8 @@ public sealed class CredentialStore
 
             _cachedDeveloperToken = null;
             _cachedDeveloperTokenExpiry = DateTimeOffset.MinValue;
+            _cachedMusicKitDeveloperToken = null;
+            _cachedMusicKitDeveloperTokenExpiry = DateTimeOffset.MinValue;
         }
 
         if (!string.IsNullOrWhiteSpace(savedUserToken))
@@ -187,6 +240,8 @@ public sealed class CredentialStore
 
             _cachedDeveloperToken = null;
             _cachedDeveloperTokenExpiry = DateTimeOffset.MinValue;
+            _cachedMusicKitDeveloperToken = null;
+            _cachedMusicKitDeveloperTokenExpiry = DateTimeOffset.MinValue;
         }
 
         WindowsDataProtection.Delete(GetWebCookiePath());
@@ -306,9 +361,45 @@ public sealed class CredentialStore
         }
 
         var token = value.Trim();
+        if (token.Equals("Bearer", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            token = token[7..].Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return null;
+        }
+
         return token.StartsWith("Cookie:", StringComparison.OrdinalIgnoreCase) || token.Contains(';')
             ? ExtractUserToken(token)
             : token;
+    }
+
+    private static string? NormalizeDeveloperToken(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var token = value.Trim();
+        if (token.Equals("Bearer", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            token = token[7..].Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(token) ? null : token;
     }
 
     private static string? ExtractUserToken(string? cookie)

@@ -29,6 +29,10 @@
                 <ComboBoxItem Content="Title A–Z" Tag="title" />
                 <ComboBoxItem Content="Artist A–Z" Tag="artist" />
                 <ComboBoxItem Content="Album A–Z" Tag="album" />
+                <ComboBoxItem Content="Date added: newest" Tag="date-added-descending" />
+                <ComboBoxItem Content="Date added: oldest" Tag="date-added-ascending" />
+                <ComboBoxItem Content="Release date: newest" Tag="release-date-descending" />
+                <ComboBoxItem Content="Release date: oldest" Tag="release-date-ascending" />
                 <ComboBoxItem Content="Duration: shortest" Tag="duration-ascending" />
                 <ComboBoxItem Content="Duration: longest" Tag="duration-descending" />
             </ComboBox>
@@ -57,7 +61,8 @@
             <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <Button x:Name="OpenButton" Content="Open details" IsEnabled="False" Click="OnOpenClicked" />
-                    <Button x:Name="PlayButton" Content="Play preview" IsEnabled="False" Click="OnPlayClicked" />
+                    <Button x:Name="OpenAppleMusicButton" Content="Open in Apple Music" IsEnabled="False" Click="OnOpenAppleMusicClicked" />
+                    <Button x:Name="PlayButton" Content="Play" IsEnabled="False" Click="OnPlayClicked" />
                     <Button x:Name="QueueButton" Content="Add to queue" IsEnabled="False" Click="OnQueueClicked" />
                     <Button x:Name="AddButton" Content="Add to playlist" IsEnabled="False" Click="OnAddClicked" />
                     <Button x:Name="FavoriteButton" Content="Add to favorites" IsEnabled="False" Click="OnFavoriteClicked" />

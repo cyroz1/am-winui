@@ -17,8 +17,10 @@ jobs:
         include:
           - platform: x64
             rid: win-x64
+            vcRedistUrl: https://aka.ms/vc14/vc_redist.x64.exe
           - platform: ARM64
             rid: win-arm64
+            vcRedistUrl: https://aka.ms/vc14/vc_redist.arm64.exe
 
     steps:
       - uses: actions/checkout@v7
@@ -38,26 +40,54 @@ jobs:
           -p:Platform=${{ matrix.platform }}
           -p:WindowsAppSDKSelfContained=true
 
-      - name: Verify app does not use or bundle WebView2
+      - name: Verify MusicKit bridge assets are published
         shell: pwsh
         env:
           PUBLISH_DIR: ${{ github.workspace }}\artifacts\publish\${{ matrix.rid }}
         run: |
-          $sourceFiles = Get-ChildItem . -Recurse -File -Include *.cs,*.xaml,*.csproj,*.props,*.targets,packages.lock.json |
-            Where-Object { $_.FullName -notmatch '\\(\.git|artifacts|bin|obj)\\' }
-          $webViewReferences = $sourceFiles |
-            Select-String -Pattern 'Microsoft\.Web\.WebView2|Microsoft\.UI\.Xaml\.Controls\.WebView2|\bWebView2\b|CoreWebView2'
-          if ($webViewReferences) {
-            $webViewReferences | ForEach-Object { Write-Error "$($_.Path):$($_.LineNumber): $($_.Line.Trim())" }
-            throw 'The app must not use WebView2.'
+          $bridgeFiles = @('MusicKitBridge.html', 'MusicKitBridge.css', 'MusicKitBridge.js')
+          foreach ($file in $bridgeFiles) {
+            $path = Join-Path $env:PUBLISH_DIR "Playback\$file"
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "MusicKit bridge asset is missing from the publish output: $path"
+            }
           }
 
+      - name: Verify WebView2 runtime is shared, not bundled
+        shell: pwsh
+        env:
+          PUBLISH_DIR: ${{ github.workspace }}\artifacts\publish\${{ matrix.rid }}
+        run: |
           $runtimeFiles = Get-ChildItem $env:PUBLISH_DIR -Recurse -File |
             Where-Object { $_.Name -match '(?i)^(msedgewebview2\.exe|msedge\.dll|msedge_elf\.dll|EmbeddedBrowserWebView\.dll)$' }
           if ($runtimeFiles) {
             $runtimeFiles | ForEach-Object { Write-Error "Unexpected WebView2 runtime file: $($_.FullName)" }
             throw 'The installer must not bundle the WebView2 runtime.'
           }
+
+      - name: Download and verify the Evergreen WebView2 bootstrapper
+        shell: pwsh
+        run: |
+          $bootstrapperPath = Join-Path $env:RUNNER_TEMP 'MicrosoftEdgeWebView2Setup.exe'
+          Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $bootstrapperPath
+          $signature = Get-AuthenticodeSignature -FilePath $bootstrapperPath
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notlike '*Microsoft Corporation*') {
+            throw 'The downloaded WebView2 bootstrapper does not have a valid Microsoft signature.'
+          }
+          "WEBVIEW2_BOOTSTRAPPER=$bootstrapperPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Download and verify the Visual C++ Redistributable
+        shell: pwsh
+        env:
+          VC_REDIST_URL: ${{ matrix.vcRedistUrl }}
+        run: |
+          $redistPath = Join-Path $env:RUNNER_TEMP 'VC-Redist.exe'
+          Invoke-WebRequest -Uri $env:VC_REDIST_URL -OutFile $redistPath
+          $signature = Get-AuthenticodeSignature -FilePath $redistPath
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notlike '*Microsoft Corporation*') {
+            throw 'The downloaded Visual C++ Redistributable does not have a valid Microsoft signature.'
+          }
+          "VC_REDIST=$redistPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Install Inno Setup
         shell: pwsh
@@ -69,7 +99,7 @@ jobs:
           BUILD_ARCH: ${{ matrix.platform }}
           PUBLISH_DIR: ${{ github.workspace }}\artifacts\publish\${{ matrix.rid }}
           APP_VERSION: 0.1.${{ github.run_number }}
-        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion="$env:APP_VERSION" /DBuildArch="$env:BUILD_ARCH" /DPublishDir="$env:PUBLISH_DIR" installer\am-native.iss'
+        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion="$env:APP_VERSION" /DBuildArch="$env:BUILD_ARCH" /DPublishDir="$env:PUBLISH_DIR" /DWebView2Bootstrapper="$env:WEBVIEW2_BOOTSTRAPPER" /DVcRedist="$env:VC_REDIST" installer\am-native.iss'
 
       - uses: actions/upload-artifact@v6
         with:

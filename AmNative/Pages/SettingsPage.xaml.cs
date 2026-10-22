@@ -21,7 +21,17 @@ public sealed partial class SettingsPage : Page
         };
         UpdateStatus();
         UpdateConnectionSummary();
+        Loaded += OnPageLoaded;
+        Unloaded += OnPageUnloaded;
     }
+
+    private void OnPageLoaded(object sender, RoutedEventArgs args) =>
+        App.Player.MusicKitAuthorizationChanged += OnMusicKitAuthorizationChanged;
+
+    private void OnPageUnloaded(object sender, RoutedEventArgs args) =>
+        App.Player.MusicKitAuthorizationChanged -= OnMusicKitAuthorizationChanged;
+
+    private void OnMusicKitAuthorizationChanged(object? sender, EventArgs args) => UpdateConnectionSummary();
 
     private void OnThemeChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -46,6 +56,10 @@ public sealed partial class SettingsPage : Page
 
         try
         {
+            var developerConfigurationChanged = !string.IsNullOrWhiteSpace(DeveloperTokenBox.Password) ||
+                                                !string.IsNullOrWhiteSpace(DeveloperTeamIdBox.Text) ||
+                                                !string.IsNullOrWhiteSpace(DeveloperKeyIdBox.Text) ||
+                                                _selectedDeveloperPrivateKeyPem is not null;
             App.Credentials.Save(
                 DeveloperTokenBox.Password,
                 UserTokenBox.Password,
@@ -54,6 +68,10 @@ public sealed partial class SettingsPage : Page
                 DeveloperKeyIdBox.Text,
                 _selectedDeveloperPrivateKeyPem);
             App.MusicApi.ResetSession();
+            if (developerConfigurationChanged)
+            {
+                App.Player.ResetMusicKitConfiguration();
+            }
             DeveloperTokenBox.Password = "";
             UserTokenBox.Password = "";
             CookieBox.Password = "";
@@ -136,8 +154,38 @@ public sealed partial class SettingsPage : Page
         }
     }
 
-    private void OnForgetClicked(object sender, RoutedEventArgs e)
+    private async void OnAuthorizeMusicKitClicked(object sender, RoutedEventArgs e)
     {
+        AuthorizeMusicKitButton.IsEnabled = false;
+        StatusText.Text = "Opening Apple Music authorization…";
+        try
+        {
+            await App.Player.RequestMusicKitAuthorizationAsync();
+            StatusText.Text = "Complete Apple Music authorization in the player window.";
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = exception.Message;
+        }
+        finally
+        {
+            AuthorizeMusicKitButton.IsEnabled = App.Credentials.HasDeveloperToken;
+            UpdateConnectionSummary();
+        }
+    }
+
+    private async void OnForgetClicked(object sender, RoutedEventArgs e)
+    {
+        string? webSignInError = null;
+        try
+        {
+            await App.Player.ForgetMusicKitAuthorizationAsync();
+        }
+        catch
+        {
+            webSignInError = " The MusicKit WebView sign-in session could not be cleared.";
+        }
+
         try
         {
             App.Credentials.Clear();
@@ -150,7 +198,7 @@ public sealed partial class SettingsPage : Page
             _selectedDeveloperPrivateKeyPem = null;
             UpdateDeveloperKeyStatus();
             UpdateConnectionSummary();
-            StatusText.Text = "Saved Apple Music credentials were removed.";
+            StatusText.Text = $"Saved Apple Music credentials were removed.{webSignInError}";
         }
         catch
         {
@@ -210,6 +258,13 @@ public sealed partial class SettingsPage : Page
                 : hasUserToken
                     ? "Music User Token is saved. Add a developer token to use the API."
                     : "Add a developer token for catalog access and a Music User Token for your library.";
+
+        MusicKitPlaybackSummary.Text = !hasDeveloperToken
+            ? "Full-track playback uses MusicKit on the Web. Add a developer token or a .p8 signing key, then authorize Apple Music."
+            : App.Player.IsMusicKitAuthorized
+                ? "Full-track playback is authorized. Catalog and library songs and supported music videos can stream through MusicKit."
+                : "Full-track playback is ready to authorize. MusicKit on the Web stores its sign-in in the local Edge WebView2 profile.";
+        AuthorizeMusicKitButton.IsEnabled = hasDeveloperToken;
     }
 
     private void UpdateDeveloperKeyStatus()

@@ -15,13 +15,17 @@ public partial class App : Application
 
     public static CredentialStore Credentials { get; } = new();
     public static AppleMusicApiClient MusicApi { get; } = new(Credentials);
-    public static PreviewPlayer Player { get; } = new();
+    public static PreviewPlayer Player { get; } = new(Credentials, MusicApi);
 
-    public static async Task<int> EnqueuePreviewsAsync(IEnumerable<MusicResource> items)
+    public static Task<IReadOnlyList<MusicResource>> ResolvePlaybackItemsAsync(
+        IEnumerable<MusicResource> items,
+        CancellationToken cancellationToken = default) =>
+        MusicApi.ResolvePlaybackItemsAsync(items, cancellationToken);
+
+    public static async Task<int> EnqueuePlaybackItemsAsync(IEnumerable<MusicResource> items)
     {
-        var playableItems = await MusicApi.ResolvePreviewsForPlaybackAsync(
-            items.Where(static item => item.CanPlayPreview).ToArray());
-        await Player.EnqueuePreviewsAsync(playableItems);
+        var playableItems = await ResolvePlaybackItemsAsync(items);
+        await Player.EnqueuePlaybackItemsAsync(playableItems);
         return playableItems.Count;
     }
 
