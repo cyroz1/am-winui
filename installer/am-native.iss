@@ -71,16 +71,14 @@ begin
   if not Exec(ExpandConstant('{tmp}\' + FileName), Parameters, '', SW_HIDE,
     ewWaitUntilTerminated, ResultCode) then
   begin
-    Result := Format('The %s installer could not be started: %s',
-      [ProductName, SysErrorMessage(ResultCode)]);
+    Result := Format('The %s installer could not be started: %s', [ProductName, SysErrorMessage(ResultCode)]);
     Exit;
   end;
 
   if (ResultCode = 3010) or (ResultCode = 1641) then
     NeedsRestart := True
   else if (ResultCode <> 0) and not (AcceptAlreadyInstalled and (ResultCode = 1638)) then
-    Result := Format('The %s installer failed with exit code %d.',
-      [ProductName, ResultCode]);
+    Result := Format('The %s installer failed with exit code %d.', [ProductName, ResultCode]);
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
